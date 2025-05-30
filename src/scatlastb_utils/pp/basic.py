@@ -31,7 +31,7 @@ def elaborate_example(
     transform: Callable[[Any], str],
     *,  # functions after the asterix are key word only arguments
     layer_key: str | None = None,
-    mudata_mod: str | None = "rna",  # Only specify defaults in the signature, not the docstring!
+    mudata_mod: (str | None) = "rna",  # Only specify defaults in the signature, not the docstring!
     sdata_table_key: str | None = "table1",
     max_items: int = 100,
 ) -> list[str]:

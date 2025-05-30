@@ -1,11 +1,39 @@
 import anndata as ad
 import numpy as np
 import pytest
+import scanpy as sc
+import scipy.sparse as sp
 
 
 @pytest.fixture
 def adata():
-    adata = ad.AnnData(X=np.array([[1.2, 2.3], [3.4, 4.5], [5.6, 6.7]]).astype(np.float32))
-    adata.layers["scaled"] = np.array([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]]).astype(np.float32)
+    from scipy.stats import nbinom
 
+    np.random.seed(42)  # For reproducibility
+
+    # Parameters for the negative binomial distribution
+    n, p = 1000, 0.5
+    counts = sp.csr_matrix(nbinom.rvs(n, p, size=(5, 10)))
+
+    adata = ad.AnnData(
+        X=counts,
+        layers={"counts": counts},
+    )
+
+    # save raw data
+    adata.raw = adata
+
+    # normalize counts
+    sc.pp.normalize_total(adata, target_sum=1e4)
+    sc.pp.log1p(adata)
+
+    return adata
+
+
+@pytest.fixture
+def adata_dask(adata):
+    from dask import array as da
+
+    adata.X = da.from_array(adata.X, chunks=(2, -1))
+    adata.layers["counts"] = da.from_array(adata.layers["counts"], chunks=(2, -1))
     return adata
