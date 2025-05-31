@@ -5,7 +5,7 @@
   "context": {
     "cookiecutter": {
       "project_name": "scAtlasTb_utils",
-      "package_name": "scatlastb_utils",
+      "package_name": "scatlastb",
       "project_description": "Package for scAtlasTb utils functions",
       "author_full_name": "Michaela Mueller",
       "author_email": "michaela.mueller@helmholtz-munich.de",

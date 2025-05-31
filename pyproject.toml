@@ -3,7 +3,7 @@ build-backend = "hatchling.build"
 requires = [ "hatchling" ]
 
 [project]
-name = "scatlastb-utils"
+name = "scatlastb"
 version = "0.0.1"
 description = "Package for scAtlasTb utils functions"
 readme = "README.md"
@@ -32,6 +32,7 @@ dependencies = [
   "scipy<1.15",
   # for debug logging (referenced from the issue template)
   "session-info2",
+  "snakemake<7.32",
   "sparse",
   "zarr<3",
 ]
@@ -141,7 +142,7 @@ addopts = [
 ]
 
 [tool.coverage.run]
-source = [ "scatlastb_utils" ]
+source = [ "scatlastb" ]
 omit = [
   "**/test_*.py",
 ]
