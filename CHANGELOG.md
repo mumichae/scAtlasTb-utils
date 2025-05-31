@@ -13,3 +13,4 @@ and this project adheres to [Semantic Versioning][].
 ### Added
 
 - Basic tool, preprocessing and plotting functions
+- Read/write functions from pipeline repo
