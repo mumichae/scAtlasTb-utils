@@ -3,9 +3,7 @@ from pathlib import Path
 from pprint import pformat
 
 import pandas as pd
-from snakemake.exceptions import WildcardError
-from snakemake.io import Wildcards, expand
-from snakemake.rules import Rule
+import snakemake
 
 from .config import _get_or_default_from_config, get_from_config
 from .InputFiles import InputFiles
@@ -41,7 +39,7 @@ class ModuleConfig:
         module_name: str,
         config: dict,
         parameters: [pd.DataFrame, str] = None,
-        default_target: [str, Rule] = None,
+        default_target: [str, snakemake.rules.Rule] = None,
         wildcard_names: list = None,
         mandatory_wildcards: list = None,
         config_params: list = None,
@@ -145,7 +143,7 @@ class ModuleConfig:
         for dataset in self.datasets:
             self.set_defaults_per_dataset(dataset, warn=warn)
 
-    def set_default_target(self, default_target: [str, Rule] = None, warn: bool = False):
+    def set_default_target(self, default_target: [str, snakemake.rules.Rule] = None, warn: bool = False):
         """Set the default target for the module.
 
         :param default_target: default output pattern for module, if None, will use config['output_map'] or wildcard pattern
@@ -214,7 +212,7 @@ class ModuleConfig:
 
     def get_output_files(
         self,
-        pattern: [str, Rule] = None,
+        pattern: [str, snakemake.rules.Rule] = None,
         extra_wildcards: dict = None,
         allow_missing: bool = False,
         as_dict: bool = False,
@@ -241,10 +239,10 @@ class ModuleConfig:
         if verbose:
             print(wildcards)
         try:
-            targets = expand(pattern, zip, **wildcards, allow_missing=allow_missing)
-        except WildcardError as e:
+            targets = snakemake.io.expand(pattern, zip, **wildcards, allow_missing=allow_missing)
+        except snakemake.exceptions.WildcardError as e:
             raise ValueError(
-                rf'WildcardError: {e}\ wildcards: {list(wildcards.keys())} for pattern "{pattern}"'
+                rf'Wildcards: {list(wildcards.keys())} for pattern "{pattern}"'
                 f"\n{pformat(pd.DataFrame(wildcards))}"
             ) from e
 
@@ -324,7 +322,7 @@ class ModuleConfig:
         """Retrieve the parameter space for the module."""
         return self.parameters.get_paramspace(**kwargs)
 
-    def get_from_parameters(self, query_dict: [dict, Wildcards], parameter_key: str, **kwargs):
+    def get_from_parameters(self, query_dict: [dict, snakemake.io.Wildcards], parameter_key: str, **kwargs):
         """Retrieve a specific parameter from the parameters DataFrame."""
         return self.parameters.get_from_parameters(dict(query_dict), parameter_key, **kwargs)
 
@@ -360,7 +358,7 @@ class ModuleConfig:
         )
         self.set_default_target()
 
-    def get_profile(self, wildcards: [dict, Wildcards]):
+    def get_profile(self, wildcards: [dict, snakemake.io.Wildcards]):
         """Get the resource profile for the given wildcards."""
         return self.get_from_parameters(wildcards, "resources")
 

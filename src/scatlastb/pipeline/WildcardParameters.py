@@ -5,8 +5,7 @@ from pprint import pformat, pprint
 
 import numpy as np
 import pandas as pd
-from snakemake.io import Wildcards
-from snakemake.utils import Paramspace
+import snakemake
 
 from .config import _get_or_default_from_config
 from .misc import unique_dataframe
@@ -94,14 +93,14 @@ class WildcardParameters:
         if paramspace_kwargs is None:
             paramspace_kwargs = {}
         self.paramspace_kwargs = paramspace_kwargs
-        # self.paramspace = Paramspace(
+        # self.paramspace = snakemake.utils.Paramspace(
         #     self.wildcards_df[self.wildcard_names],
         #     **paramspace_kwargs
         # )
 
     def subset_by_query(
         self,
-        query_dict: [dict, Wildcards],
+        query_dict: [dict, snakemake.io.Wildcards],
         columns: list = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
@@ -278,14 +277,14 @@ class WildcardParameters:
         if wildcard_names is not None:
             self.wildcard_names = wildcard_names
         self.paramspace_kwargs = kwargs
-        # self.paramspace = Paramspace(
+        # self.paramspace = snakemake.utils.Paramspace(
         #     self.wildcards_df[self.wildcard_names],
         #     **kwargs
         # )
 
     def get_wildcards(
         self,
-        subset_dict: [dict, Wildcards] = None,
+        subset_dict: [dict, snakemake.io.Wildcards] = None,
         exclude: [list, str] = None,
         wildcard_names: list = None,
         all_params: bool = False,
@@ -334,7 +333,7 @@ class WildcardParameters:
         """Get parameters dataframe."""
         return self.parameters_df
 
-    def get_paramspace(self, wildcard_names: list = None, exclude: list = None, **kwargs) -> Paramspace:
+    def get_paramspace(self, wildcard_names: list = None, exclude: list = None, **kwargs) -> snakemake.utils.Paramspace:
         """Get snakemake.utils.Paramspace object from wildcards_df.
 
         :param default: whether to return the default paramspace (all wildcards)
@@ -349,14 +348,14 @@ class WildcardParameters:
         if not kwargs:
             kwargs = self.paramspace_kwargs
         try:
-            paramspace = Paramspace(self.wildcards_df[wildcard_names], **kwargs)
+            paramspace = snakemake.utils.Paramspace(self.wildcards_df[wildcard_names], **kwargs)
         except KeyError as e:
             raise ValueError(f"{e}\nwildcard names: {wildcard_names}, kwargs: {kwargs}") from e
         return paramspace
 
     def get_from_parameters(
         self,
-        query_dict: [dict, Wildcards],
+        query_dict: [dict, snakemake.io.Wildcards],
         parameter_key: str,
         wildcards_sub: [list, None] = None,
         exclude: [list, str] = None,
