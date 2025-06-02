@@ -1,9 +1,9 @@
 # API
 
-Import `scatlastb` as:
+Import `scatlastb_utils` as:
 
 ```
-import scatlastb as sa
+import scatlastb_utils as sa
 ```
 
 

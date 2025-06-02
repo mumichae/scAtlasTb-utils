@@ -1,7 +1,7 @@
 # Pipeline Configuration: `pipeline`
 
 ```{eval-rst}
-.. currentmodule:: scatlastb.pipeline
+.. currentmodule:: scatlastb_utils.pipeline
 ```
 
 

@@ -1,10 +1,10 @@
 import pytest
 
-import scatlastb
+import scatlastb_utils
 
 
 def test_package_has_version():
-    assert scatlastb.__version__ is not None
+    assert scatlastb_utils.__version__ is not None
 
 
 @pytest.mark.skip(reason="This decorator should be removed when test passes.")
@@ -32,7 +32,7 @@ def test_elaborate_example_adata_only_simple(
     expected_len,
     expected_substring,
 ):
-    result = scatlastb.pp.elaborate_example(
+    result = scatlastb_utils.pp.elaborate_example(
         items=[adata], transform=transform, layer_key=layer_key, max_items=max_items
     )
 

@@ -14,4 +14,4 @@ __all__ = [
     "pipeline",
 ]
 
-__version__ = version("scatlastb")
+__version__ = version("scatlastb_utils")

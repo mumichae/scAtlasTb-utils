@@ -1,7 +1,7 @@
 # Preprocessing: `pp`
 
 ```{eval-rst}
-.. currentmodule:: scatlastb.pp
+.. currentmodule:: scatlastb_utils.pp
 ```
 
 ```{eval-rst}

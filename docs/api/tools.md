@@ -1,7 +1,7 @@
 # Tools: `tl`
 
 ```{eval-rst}
-.. currentmodule:: scatlastb.tl
+.. currentmodule:: scatlastb_utils.tl
 ```
 
 

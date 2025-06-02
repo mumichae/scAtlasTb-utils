@@ -4,7 +4,7 @@
 # Reading and Writing: `io`
 
 ```{eval-rst}
-.. currentmodule:: scatlastb.io
+.. currentmodule:: scatlastb_utils.io
 ```
 
 ## Reading

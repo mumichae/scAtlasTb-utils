@@ -1,7 +1,7 @@
 # Plotting: `pl`
 
 ```{eval-rst}
-.. currentmodule:: scatlastb.pl
+.. currentmodule:: scatlastb_utils.pl
 ```
 
 ```{eval-rst}

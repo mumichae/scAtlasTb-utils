@@ -1,6 +1,6 @@
 import pytest
 
-import scatlastb as sa
+import scatlastb_utils as sa
 
 
 @pytest.mark.parametrize(

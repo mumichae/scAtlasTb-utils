@@ -3,7 +3,7 @@ build-backend = "hatchling.build"
 requires = [ "hatchling" ]
 
 [project]
-name = "scatlastb"
+name = "scatlastb-utils"
 version = "0.0.1"
 description = "Package for scAtlasTb utils functions"
 readme = "README.md"
@@ -60,9 +60,9 @@ optional-dependencies.test = [
   "pytest",
 ]
 # https://docs.pypi.org/project_metadata/#project-urls
-urls.Documentation = "https://scAtlasTb_utils.readthedocs.io/"
-urls.Homepage = "https://github.com/mumichae/scAtlasTb_utils"
-urls.Source = "https://github.com/mumichae/scAtlasTb_utils"
+urls.Documentation = "https://scAtlasTb-utils.readthedocs.io/"
+urls.Homepage = "https://github.com/mumichae/scAtlasTb-utils"
+urls.Source = "https://github.com/mumichae/scAtlasTb-utils"
 
 [tool.hatch.envs.default]
 installer = "uv"
@@ -142,7 +142,7 @@ addopts = [
 ]
 
 [tool.coverage.run]
-source = [ "scatlastb" ]
+source = [ "scatlastb_utils" ]
 omit = [
   "**/test_*.py",
 ]

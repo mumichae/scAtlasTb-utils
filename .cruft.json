@@ -4,13 +4,13 @@
   "checkout": null,
   "context": {
     "cookiecutter": {
-      "project_name": "scAtlasTb_utils",
-      "package_name": "scatlastb",
+      "project_name": "scAtlasTb-utils",
+      "package_name": "scatlastb-utils",
       "project_description": "Package for scAtlasTb utils functions",
       "author_full_name": "Michaela Mueller",
       "author_email": "michaela.mueller@helmholtz-munich.de",
       "github_user": "mumichae",
-      "github_repo": "scAtlasTb_utils",
+      "github_repo": "scAtlasTb-utils",
       "license": "MIT License",
       "ide_integration": true,
       "_copy_without_render": [

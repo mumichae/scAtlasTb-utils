@@ -1,7 +1,7 @@
 # Metrics: `me`
 
 ```{eval-rst}
-.. currentmodule:: scatlastb.metrics
+.. currentmodule:: scatlastb_utils.metrics
 ```
 
 
