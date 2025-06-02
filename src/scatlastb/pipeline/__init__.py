@@ -1,13 +1,11 @@
 from pathlib import Path
 
-from .config import _get_or_default_from_config, set_defaults
-from .InputFiles import InputFiles
-from .ModuleConfig import ModuleConfig
-from .WildcardParameters import WildcardParameters
+from .config import set_defaults
+from .ModuleConfig import InputFiles, ModuleConfig, WildcardParameters, _get_or_default_from_config
 
 
 class PipelineConfig:
-    """Class for overall pipeline configuration"""
+    """Class for overall pipeline configuration."""
 
     def __init__(self, config: dict):
         """Initialize pipeline with config.
