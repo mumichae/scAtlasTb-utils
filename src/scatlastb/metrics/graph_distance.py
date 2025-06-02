@@ -14,7 +14,7 @@ from tqdm import tqdm
 multiprocessing.set_start_method("spawn", force=True)
 
 
-def symmetrize_mask(x, verbose=False):
+def _symmetrize_mask(x, verbose=False):
     """Create a mask for symmetrizing a sparse matrix.
 
     This function identifies the entries in the upper triangular part of the matrix that are not mirrored in the lower triangular part.
@@ -74,7 +74,16 @@ def symmetrize_if_needed(x):
 
 
 def _compute_distances(rows, cols, obsm, n_jobs=-1, batch_size=100_000, **kwargs):
-    """Compute distances for given rows and columns in obsm."""
+    """Compute distances for given rows and columns in obsm.
+
+    :param rows: row indices for which distances should be computed
+    :param cols: column indices for which distances should be computed
+    :param obsm: embedding matrix from which distances are computed
+    :param n_jobs: number of jobs to run in parallel, -1 for all available cores
+    :param batch_size: batch size for distance computation
+    :param kwargs: additional keyword arguments for distance computation, e.g. metric='euclidean'
+    :return: distances for the given rows and columns
+    """
 
     def _compute_row_distance(obsm, row, first, last):
         indices = np.arange(first, last)
@@ -157,6 +166,11 @@ def compute_missing_distances(
     :param obsp_key_1: slot for pair-wise distances from embedding 1
     :param obsm_key: slot for embedding 1 used for missing distance computation
     :param obsp_key_2: slot slot for pair-wise distances from embedding 2
+    :param inplace: if True, set distances inplace in adata.obsp[obsp_key_1]
+    :param n_jobs: number of jobs to run in parallel, -1 for all available cores
+    :param batch_size: batch size for distance computation
+    :param kwargs: additional keyword arguments for distance computation, e.g. metric='euclidean'
+    :param return_matrix: if True, return the distance matrix
     """
     x1 = adata.obsp[obsp_key_1]
     x2 = adata.obsp[obsp_key_2]
@@ -210,7 +224,16 @@ def compute_missing_distances(
 
 
 def plot_ranked_distances(adata, x1, x2):
-    """Diagnostic plot for distance computation"""
+    """Diagnostic plot for distance computation.
+
+    This function plots the ranked average distances and differences between two embeddings.
+
+    :param adata: AnnData object containing the distances in obs
+    :param x1: name of the graph distances of the first embedding
+    :param x2: name of the graph distances of the second embedding
+    """
+    # TODO: move to pl?
+
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
     metrics = ["avg_distance_1", "avg_distance_2"]
@@ -234,7 +257,17 @@ def plot_ranked_distances(adata, x1, x2):
 
 
 def plot_distances_scatter(adata, x1, x2, **kwargs):
-    """Diagnostic plot for distance computation"""
+    """Diagnostic plot for distance computation.
+
+    This function plots the average distances and differences between two embeddings in a scatter plot.
+
+    :param adata: AnnData object containing the distances in obs
+    :param x1: name of the graph distances of the first embedding
+    :param x2: name of the graph distances of the second embedding
+    :param kwargs: additional keyword arguments for the plt.scatter plot, e.g. `c`, `s`, `alpha`
+    """
+    # TODO: move to pl?
+
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
     ax1.scatter(
@@ -264,10 +297,9 @@ def plot_distances_scatter(adata, x1, x2, **kwargs):
 
 
 def sparse_spearman(matrix1: sp.spmatrix, matrix2: sp.spmatrix, max_workers=None, n_jobs=-1):
-    """Calculate Spearman correlation for each row in two sparse matrices.
+    """Calculate Spearman correlation for each row in two sparse distance matrices.
 
-    This function computes the Spearman correlation only for non-zero entries in the sparse matrices,
-    assuming that all 0 entries don't contain any information.
+    This function computes the Spearman correlation only for local neighborhoods.
 
     :param matrix1: First sparse matrix (scipy.sparse format).
     :param matrix2: Second sparse matrix (scipy.sparse format).
@@ -355,34 +387,6 @@ def get_knn(x, k):
     return sp.csr_matrix((data, indices, indptr), shape=x.shape)
 
 
-#     if isinstance(x, da.Array):
-#         x = x.compute()
-#     x = sp.csr_matrix(x)  # ensure CSR format for fast row access
-#     new_data = []
-#     new_indices = []
-#     indptr = [0]
-
-#     # Iterate over each row
-#     for i in tqdm(range(x.shape[0]), desc=f'Select {k} nearest neighbors', mininterval=1):
-#         # Get the non-zero values and columns for the current row
-#         start, end = x.indptr[i], x.indptr[i + 1]
-#         row_data = x.data[start:end]
-#         row_indices = x.indices[start:end]
-
-#         # set values that are smaller than k to 0
-#         if len(row_data) < k:
-#             mask = np.ones_like(row_data, dtype=bool)
-#         else:
-#             kth_smallest = np.partition(row_data, k - 1)[k - 1]
-#             mask = row_data >= kth_smallest
-
-#         new_data.extend(row_data[mask])
-#         new_indices.extend(row_indices[mask])
-#         indptr.append(len(new_data))
-
-#     return sp.csr_matrix((new_data, new_indices, indptr), shape=x.shape)
-
-
 def compare_distances(
     adata,
     obsp_key_1,
@@ -395,7 +399,28 @@ def compare_distances(
     log_scale_diffs=False,
     **kwargs,
 ):
-    """Compare distances of same edges but from different representations."""
+    """Compare distances of same edges but from different representations.
+
+    This function computes:
+
+    1. "average_distance_1": the average distances per k-nearest neighborhood for obsp_key_1
+    2. "average_distance_2": the average distances per k-nearest neighborhood for obsp_key_2
+    3. "average_difference": the difference of 1. and 2.
+    4. "average_distance_diff": the average of the differences between the two embeddings
+    5. "spearman_correlation": the Spearman correlation of the distance differences (of the k-nearest neighbors only)
+
+    :param adata: AnnData object containing the distances in obsp
+    :param obsp_key_1: slot for pair-wise distances from embedding 1
+    :param obsm_key_1: slot for embedding 1 used for distance computation
+    :param obsp_key_2: slot for pair-wise distances from embedding 2
+    :param obsm_key_2: slot for embedding 2 used for distance computation
+    :param scale_distances: if True, scale distances by the quantile of the distances
+    :param quantile: quantile to scale distances by, default is 0.9
+    :param k_max: maximum number of neighbors to consider, default is 50
+    :param log_scale_diffs: if True, log scale the differences
+    :param kwargs: additional keyword arguments for distance computation, e.g. metric='euclidean'
+    :return: DataFrame with average distances and differences
+    """
     if isinstance(adata.obsp[obsp_key_1], da.Array):
         adata.obsp[obsp_key_1] = adata.obsp[obsp_key_1].compute()
 
@@ -453,8 +478,7 @@ def compare_distances(
             "average_distance_2": (x2.sum(axis=0) / degrees).A1,
             "average_difference": avg_diff,
             "average_distance_diff": avg_dist_diff,
-            "spearman_correlation": avg_dist_diff,  # quick workaround
-            # 'spearman_correlation': sparse_spearman(x1, x2),
+            "spearman_correlation": sparse_spearman(x1, x2),
         },
         index=adata.obs_names,
     )

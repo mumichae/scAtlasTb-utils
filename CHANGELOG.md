@@ -15,3 +15,4 @@ and this project adheres to [Semantic Versioning][].
 - Basic tool, preprocessing and plotting functions
 - Read/write functions from pipeline repo
 - Configuration classes for pipeline & module instantiation
+- Graph distance metrics for local comparison of integrations
