@@ -1,7 +1,7 @@
-# Pipeline Configuration Classes: `pipeline`
+# Pipeline Configuration: `pipeline`
 
 ```{eval-rst}
-.. currentmodule:: scatlastb
+.. currentmodule:: scatlastb.pipeline
 ```
 
 
@@ -10,7 +10,8 @@
     :nosignatures:
     :toctree: ../generated
 
-    pipeline.ModuleConfig
-    pipeline.WildcardParameters
-    pipeline.InputFiles
+    PipelineConfig
+    ModuleConfig
+    WildcardParameters
+    InputFiles
 ```
