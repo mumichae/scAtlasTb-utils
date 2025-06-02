@@ -201,7 +201,7 @@ class ModuleConfig:
     def get_wildcards(self, **kwargs) -> [dict, pd.DataFrame]:
         """Retrieve wildcard instances as dictionary
 
-        :param **kwargs: arguments passed to WildcardParameters.get_wildcards
+        :param kwargs: arguments passed to WildcardParameters.get_wildcards
         :return: dictionary of wildcards that can be applied directly for expanding target files
         """
         return self.parameters.get_wildcards(**kwargs)
@@ -221,11 +221,10 @@ class ModuleConfig:
         verbose: bool = False,
         **kwargs,
     ) -> list:
-        """
-        Get output file based on wildcards
+        """Get output file based on wildcards
 
         :param pattern: output pattern, defaults to self.default_target
-        :param **kwargs: arguments passed to WildcardParameters.get_wildcards
+        :param kwargs: arguments passed to WildcardParameters.get_wildcards
         """
         if pattern is None:
             pattern = self.default_target

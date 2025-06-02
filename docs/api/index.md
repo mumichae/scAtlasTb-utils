@@ -11,7 +11,6 @@ import scatlastb as sa
 :caption: Modules
 :name: modules
 :maxdepth: 2
-:toctree: ../generated
 
 io
 preprocessing

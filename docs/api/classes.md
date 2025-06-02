@@ -11,7 +11,7 @@
     :toctree: ../generated
 
     PipelineConfig
-    ModuleConfig
-    WildcardParameters
-    InputFiles
+    ModuleConfig.ModuleConfig
+    ModuleConfig.WildcardParameters
+    ModuleConfig.InputFiles
 ```
