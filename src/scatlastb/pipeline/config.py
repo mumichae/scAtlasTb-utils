@@ -1,4 +1,36 @@
+import warnings
 from pprint import pprint
+
+
+def get_from_config(
+    config: dict,
+    query: list,
+    default: str | bool | float | int | dict | list | None = None,
+    warn: bool = False,
+) -> str | bool | float | int | dict | list | None:
+    """Get any key from the config via query
+
+    Args:
+        config (str): config dictionary
+        query (list): list of keys to walk down the config
+        default (Union[str,bool,float,int,dict,list, None], optional): default value if key not found. Defaults to None.
+
+    Returns
+    -------
+        Union[str,bool,float,int,dict,list, None]: value of query in config
+    """
+    value = config  # start at top level
+    for q in query:  # walk down query
+        try:
+            value = value[q]
+        except (AttributeError, KeyError, TypeError):
+            if warn:
+                warnings.warn(
+                    f"key {q} not found in config for query {query}, returning default",
+                    stacklevel=2,
+                )
+            return default
+    return value
 
 
 def set_defaults(config, modules=None, warn=False):
