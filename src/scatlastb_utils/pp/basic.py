@@ -111,12 +111,19 @@ def strip_barcodes(obs_names):
     """
     #apply a simple regex to whatever the obs_names may be formatted as
     #find a 16-size block of [ACTG] in there
-    #start by checking if the barcodes are present everywhere to throw an error
-    #bool(re.search()) is false if no hits are found
-    if not np.all([bool(re.search("[ACTG]{16}", i)) for i in obs_names]):
-        raise ValueError("Not all input barcodes have a 16bp 10X barcode present")
-    #return the first match - we've got the barcode
-    return [re.search("[ACTG]{16}", i).group(0) for i in obs_names]
+    try:
+        #return the first match - we've got the barcode
+        return [re.search("[ACTG]{16}", i).group(0) for i in obs_names]
+    except AttributeError:
+        #if there's no match, it tries to go get a .group of a None
+        #and throws an attribute error
+        raise ValueError("Not all input ``obs_names`` have a 16bp 10X barcode")
+
+
+def _get_barcode_overlap(grp_index, library_obs_names):
+    #utility function to intersect two sets of barcodes and get their length
+    #strip the actual grp_index input as it's not stripped as it goes in here
+    return len(set(strip_barcodes(grp_index)).intersection(set(library_obs_names)))
 
 
 def find_library_obs(library_obs_names, obs, library_key="library_id"):
@@ -154,24 +161,24 @@ def find_library_obs(library_obs_names, obs, library_key="library_id"):
     #the library name in the provided obs, the number of cells on input
     #the number of cells for the library in the obs, and the intersection
     found = pd.Series(index=["library", "input_cell_count", "library_cell_count", "overlap"], dtype="object")
-    #the input cell count is fixed, and we need to initialise the overlap at 0
+    #the input cell count is fixed
     found["input_cell_count"] = len(library_obs_names)
-    found["overlap"] = 0
     #strip the input to just the barcodes, as that's what we'll be comparing to
     library_obs_names = strip_barcodes(library_obs_names)
-    #iterate over the libraries in the obs
-    for library in obs[library_key].unique():
-        #pull out the barcodes for it, stripping anything else away
-        obs_bcs = strip_barcodes(obs[obs[library_key] == library].index)
-        #check intersection with input
-        current_overlap = len(set(library_obs_names).intersection(set(obs_bcs)))
-        #if we have a new best match, stash it as the best hit
-        if current_overlap > found["overlap"]:
-            found["library"] = library
-            found["library_cell_count"] = len(obs_bcs)
-            found["overlap"] = current_overlap
+    #extract the column holding the library info
+    x = obs.loc[:,library_key]
+    #the .groupby() creates a pd.Series with elements named after libraries
+    #with values that are the index (obs names) for that library
+    #and then the .apply() takes them, adds a static argument of the barcode pool on input
+    #and performs a simple lambda to get the size of the overlap between the two
+    #(the actual function is broken off for legibility)
+    obs_counts = x.groupby(x, observed=False).apply(lambda grp: _get_barcode_overlap(grp.index, library_obs_names))
     #at this point we can pull out the subset and strip the barcodes
-    sub = obs[obs[library_key] == found["library"]].copy(deep=True)
+    sub = obs[obs[library_key] == obs_counts.idxmax()].copy(deep=True)
     sub.index = strip_barcodes(sub.index)
+    #get stats
+    found["library"] = obs_counts.idxmax()
+    found["library_cell_count"] = sub.shape[0]
+    found["overlap"] = obs_counts.max()
     #and now we have everything we want, yield both the subset and the match stats
     return sub, found
