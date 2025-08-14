@@ -2,8 +2,6 @@ name: Release
 
 on:
   push:
-    branches:
-      - main
     tags:
       - 'v*.*.*'
   release:
@@ -14,43 +12,8 @@ defaults:
     shell: bash -euo pipefail {0}
 
 jobs:
-  # -------------------
-  # 1. Update CHANGELOG.md on PR merge to main
-  # -------------------
-  update-changelog:
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Get last tag
-        id: last_tag
-        run: |
-          echo "tag=$(git describe --tags --abbrev=0 --match 'v*.*.*' || echo '')" >> $GITHUB_OUTPUT
-
-      - name: Generate CHANGELOG
-        uses: requarks/changelog-action@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fromTag: ${{ steps.last_tag.outputs.tag }}
-          toTag: HEAD
-
-      - name: Commit updated CHANGELOG.md
-        uses: stefanzweifel/git-auto-commit-action@v4
-        with:
-          branch: main
-          commit_message: 'docs: update CHANGELOG.md [skip ci]'
-          file_pattern: CHANGELOG.md
-
-  # -------------------
-  # 2. Create GitHub Release on tag push
-  # -------------------
   create-release:
-    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    needs: update-changelog
     steps:
       - uses: actions/checkout@v4
         with:
@@ -70,9 +33,6 @@ jobs:
           bodyFile: RELEASE_BODY.md
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  # -------------------
-  # 3. Upload release to PyPI
-  # -------------------
   upload-pypi:
     runs-on: ubuntu-latest
     needs: create-release
@@ -84,7 +44,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          filter: blob:none
           fetch-depth: 0
 
       - name: Install uv

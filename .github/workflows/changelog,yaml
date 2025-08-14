@@ -1,0 +1,33 @@
+name: Update Changelog
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  update-changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get last tag
+        id: last_tag
+        run: |
+          echo "tag=$(git describe --tags --abbrev=0 --match 'v*.*.*' || echo '')" >> $GITHUB_OUTPUT
+
+      - name: Generate CHANGELOG
+        uses: requarks/changelog-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fromTag: ${{ steps.last_tag.outputs.tag }}
+          toTag: HEAD
+
+      - name: Commit updated CHANGELOG.md
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          branch: main
+          commit_message: 'docs: update CHANGELOG.md [skip ci]'
+          file_pattern: CHANGELOG.md
