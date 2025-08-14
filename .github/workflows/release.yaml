@@ -60,7 +60,7 @@ jobs:
         id: changelog_section
         run: |
           VERSION="${GITHUB_REF_NAME}"
-          awk "/## ${VERSION}/,/## v/" CHANGELOG.md | head -n -1 > RELEASE_BODY.md || true
+          awk "/^## ${VERSION}/,/^## v/" CHANGELOG.md | head -n -1 > RELEASE_BODY.md || true
 
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1
