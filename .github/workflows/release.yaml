@@ -1,18 +1,59 @@
-name: Release
+name: Release & Changelog
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*.*.*'
-  release:
-    types: [published]
 
 defaults:
   run:
     shell: bash -euo pipefail {0}
 
 jobs:
+  # -------------------
+  # 1. Update CHANGELOG.md on merge to main
+  # -------------------
+  update-changelog:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get last tag
+        id: last_tag
+        run: |
+          echo "tag=$(git describe --tags --abbrev=0 --match 'v*.*.*' || echo '')" >> $GITHUB_OUTPUT
+
+      - name: Generate CHANGELOG (preserve Unreleased)
+        uses: requarks/changelog-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fromTag: ${{ steps.last_tag.outputs.tag }}
+          toTag: HEAD
+          writeToFile: true
+          changelogFilePath: CHANGELOG.md
+          includeRefIssues: true
+          useGitmojis: true
+          includeInvalidCommits: false
+          reverseOrder: false
+          templatePath: .github/changelog-templates/keep-unreleased.hbs
+
+      - name: Commit updated CHANGELOG.md
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          branch: main
+          commit_message: 'docs: update CHANGELOG.md [skip ci]'
+          file_pattern: CHANGELOG.md
+
+  # -------------------
+  # 2. Create GitHub Release on tag push
+  # -------------------
   create-release:
+    if: startsWith(github.ref_name, 'v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,19 +64,7 @@ jobs:
         id: changelog_section
         run: |
           VERSION="${GITHUB_REF_NAME}"
-          echo "Extracting changelog for $VERSION..."
-
-          # Use awk to grab section from the version header to the next version header (or end of file)
-          SECTION=$(awk "/^## ${VERSION}$/,/^## v[0-9]+\.[0-9]+\.[0-9]+/" CHANGELOG.md | head -n -1)
-
-          if [ -z "$SECTION" ]; then
-            echo "::error::No changelog section found for $VERSION in CHANGELOG.md"
-            exit 1
-          fi
-
-          echo "$SECTION" > RELEASE_BODY.md
-          echo "✅ Extracted changelog section:"
-          cat RELEASE_BODY.md
+          awk "/## \\[?${VERSION}\\]?/,/^## /" CHANGELOG.md | sed '$d' > RELEASE_BODY.md || true
 
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1
@@ -45,9 +74,13 @@ jobs:
           bodyFile: RELEASE_BODY.md
           token: ${{ secrets.GITHUB_TOKEN }}
 
+  # -------------------
+  # 3. Upload release to PyPI
+  # -------------------
   upload-pypi:
+    if: startsWith(github.ref_name, 'v')
     runs-on: ubuntu-latest
-    # needs: create-release
+    needs: create-release
     environment:
       name: pypi
       url: https://pypi.org/p/scatlastb-utils
@@ -56,6 +89,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          filter: blob:none
           fetch-depth: 0
 
       - name: Install uv
