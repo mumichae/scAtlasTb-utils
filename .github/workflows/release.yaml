@@ -23,7 +23,19 @@ jobs:
         id: changelog_section
         run: |
           VERSION="${GITHUB_REF_NAME}"
-          awk "/^## ${VERSION}/,/^## v/" CHANGELOG.md | head -n -1 > RELEASE_BODY.md || true
+          echo "Extracting changelog for $VERSION..."
+
+          # Use awk to grab section from the version header to the next version header (or end of file)
+          SECTION=$(awk "/^## ${VERSION}$/,/^## v[0-9]/" CHANGELOG.md | head -n -1)
+
+          if [ -z "$SECTION" ]; then
+            echo "::error::No changelog section found for $VERSION in CHANGELOG.md"
+            exit 1
+          fi
+
+          echo "$SECTION" > RELEASE_BODY.md
+          echo "✅ Extracted changelog section:"
+          cat RELEASE_BODY.md
 
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1
