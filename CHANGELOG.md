@@ -16,3 +16,4 @@ and this project adheres to [Semantic Versioning][].
 - Read/write functions from pipeline repo
 - Configuration classes for pipeline & module instantiation
 - Graph distance metrics for local comparison of integrations
+- Library obs functions for finding the best cell barcode match against an input cell barcode list
