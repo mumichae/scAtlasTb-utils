@@ -3,15 +3,30 @@ import pytest
 import scatlastb_utils as atl
 
 
-def test_strip_barcodes():
-    # make two pools of barcodes, one to pass, one to fail
-    bc1 = ["ACTGACTGACTGACTG", "ACTGACTGACTGAAAA-1", "PREFIX_ACTGACTGACTGTTTT"]
-    bc2 = ["this-will-brick"]
-    # this is to fall out of the stripping
-    assert atl.pp.strip_barcodes(bc1) == ["ACTGACTGACTGACTG", "ACTGACTGACTGAAAA", "ACTGACTGACTGTTTT"]
-    # this throws a ValueError if it fails to find the barcode
-    with pytest.raises(ValueError):
-        atl.pp.strip_barcodes(bc2)
+@pytest.mark.parametrize(
+    "barcodes,expected,raises",
+    [
+        pytest.param(
+            ["ACTGACTGACTGACTG", "ACTGACTGACTGAAAA-1", "PREFIX_ACTGACTGACTGTTTT"],
+            ["ACTGACTGACTGACTG", "ACTGACTGACTGAAAA", "ACTGACTGACTGTTTT"],
+            None,
+            id="valid barcodes",
+        ),
+        pytest.param(
+            ["this-will-brick"],
+            None,
+            ValueError,
+            id="invalid barcode",
+        ),
+    ],
+)
+def test_strip_barcodes(barcodes, expected, raises):
+    """Test atl.pp.strip_barcodes for valid and invalid inputs."""
+    if raises:
+        with pytest.raises(raises):
+            atl.pp.strip_barcodes(barcodes)
+    else:
+        assert atl.pp.strip_barcodes(barcodes) == expected
 
 
 def test_find_library_obs():
