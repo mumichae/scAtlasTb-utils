@@ -16,10 +16,10 @@ jobs:
       - name: Get last tag
         id: last_tag
         run: |
-          echo "tag=$(git describe --tags --abbrev=0 --match 'v*.*.*' || echo '')" >> $GITHUB_OUTPUT
+          echo "tag=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' || echo '')" >> $GITHUB_OUTPUT
 
       - name: Generate CHANGELOG
-        uses: requarks/changelog-action@v1
+        uses: requarks/changelog-action@v1.10.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fromTag: ${{ steps.last_tag.outputs.tag }}
