@@ -26,7 +26,7 @@ jobs:
       - name: Get last tag
         id: last_tag
         run: |
-          echo "tag=$(git describe --tags --abbrev=0 --match 'v*.*.*' || echo '')" >> $GITHUB_OUTPUT
+          echo "tag=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' || echo '')" >> $GITHUB_OUTPUT
 
       - name: Generate CHANGELOG (preserve Unreleased)
         uses: requarks/changelog-action@v1
@@ -64,7 +64,11 @@ jobs:
         id: changelog_section
         run: |
           VERSION="${GITHUB_REF_NAME}"
-          awk "/## \\[?${VERSION}\\]?/,/^## /" CHANGELOG.md | sed '$d' > RELEASE_BODY.md || true
+          awk "/## \\[?${VERSION}\\]?/,/^## /" CHANGELOG.md | sed '$d' > RELEASE_BODY.md
+          if ! test -s RELEASE_BODY.md; then
+            echo "ERROR: Changelog section for version ${VERSION} not found in CHANGELOG.md."
+            exit 1
+          fi
 
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1
@@ -91,7 +95,7 @@ jobs:
         with:
           filter: blob:none
           fetch-depth: 0
-
+          fetch-depth: 0
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
