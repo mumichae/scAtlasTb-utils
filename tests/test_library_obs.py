@@ -55,6 +55,7 @@ def test_strip_barcodes(barcodes, expected, raises):
 
 # in the interest of legibility, the actual tests for this function are split into two
 # in this part, we're checking for exceptions
+# also note the appearance of the obs fixture from earlier in the arguments
 @pytest.mark.parametrize(
     "barcodes,library_key,expected_exception",
     [
@@ -89,7 +90,7 @@ def test_find_library_obs_exceptions(barcodes, library_key, expected_exception, 
             ["ACTGACTGACTGAAAA-different-ending", "PREFIX_ACTGACTGACTGTTTT", "missing-ACTGACTGACTGGGGG-from-pool"],
             "library",
             (3, 2),
-            {"library": "A1", "input_cell_count": 3, "library_cell_count": 3, "overlap": 2},
+            pd.Series({"library": "A1", "input_cell_count": 3, "library_cell_count": 3, "overlap": 2}),
             id="valid input with library key",
         ),
     ],
@@ -99,5 +100,5 @@ def test_find_library_obs(barcodes, library_key, expected_shape, expected_found,
     assert isinstance(sub, pd.DataFrame)
     assert isinstance(found, pd.Series)
     assert sub.shape == expected_shape
-    for k, v in expected_found.items():
-        assert found[k] == v
+    # can handily check whether two series are identical like so
+    pd.testing.assert_series_equal(found, expected_found)
