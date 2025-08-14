@@ -66,9 +66,19 @@ def test_strip_barcodes(barcodes, expected, raises):
             id="missing default library key (good barcodes)",
         ),
         # KeyError: default library key missing (should be checked before the barcodes)
-        pytest.param(["this-will-brick"], None, KeyError, id="missing default library key (bad barcodes)",),
+        pytest.param(
+            ["this-will-brick"],
+            None,
+            KeyError,
+            id="missing default library key (bad barcodes)",
+        ),
         # ValueError: bricked barcodes
-        pytest.param(["this-will-brick"], "library", ValueError, id="invalid barcode with library key",),
+        pytest.param(
+            ["this-will-brick"],
+            "library",
+            ValueError,
+            id="invalid barcode with library key",
+        ),
     ],
 )
 def test_find_library_obs_exceptions(barcodes, library_key, expected_exception, obs):
