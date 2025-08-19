@@ -23,7 +23,7 @@ from .subset_slots import set_mask_per_slot, subset_slot
 def get_file_reader(file):
     """Determine the file reader function based on the file extension."""
     file_path = Path(file)
-    if file_path.suffix in [".zarr", ".zarr/"]:
+    if file_path.suffix == ".zarr" or file_path.name.endswith(".zarr/raw"):
         func = zarr.open
         file_type = "zarr"
     elif file_path.suffix == ".h5ad":
@@ -598,9 +598,12 @@ def write_zarr_linked(
         in_dirs = []
     else:
         in_dir = Path(in_dir)
-        if not in_dir.name.endswith((".zarr", ".zarr/")):
+        if in_dir.suffix != ".zarr" and not in_dir.name.endswith(".zarr/raw"):
+            print_flushed(
+                f"Warning: `{in_dir=!r}` is not a top-level zarr directory, not linking any files", verbose=True
+            )
             adata.write_zarr(out_dir)
-            return
+            return  # exit when in_dir is not a top-level zarr directory
         in_dirs = [f.name for f in in_dir.iterdir()]
 
     if files_to_keep is None:
