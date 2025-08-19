@@ -15,6 +15,8 @@ from dask import array as da
 from scipy.sparse import csr_matrix
 from tqdm import tqdm
 
+from scatlastb_utils.pipeline.misc import dask_compute
+
 from .config import ALL_SLOTS, print_flushed, zarr
 from .sparse_dask import read_as_dask_array, sparse_dataset_as_dask
 from .subset_slots import set_mask_per_slot, subset_slot
@@ -407,7 +409,7 @@ def read_dask(
     return read_dispatched(group, callback=callback)
 
 
-def write_zarr(adata, file):
+def write_zarr(adata: ad.AnnData, file: str | Path, compute: bool = False):
     """Write AnnData object to zarr file. Cleans up data types before writing."""
 
     def sparse_coo_to_csr(matrix):
@@ -430,7 +432,10 @@ def write_zarr(adata, file):
                 # Convert non-NaN entries to string, preserve NaN values
                 adata.obs[col] = adata.obs[col].apply(lambda x: str(x) if pd.notna(x) else x).astype("category")
 
-    adata.write_zarr(file)  # doesn't seem to work with dask array
+    if compute:
+        adata = dask_compute(adata)
+
+    adata.write_zarr(file)
 
 
 def link_file(in_file, out_file, relative_path=True, overwrite=False, verbose=True):
