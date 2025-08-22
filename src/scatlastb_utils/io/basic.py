@@ -13,6 +13,9 @@ import pandas as pd
 from anndata.io import read_elem, sparse_dataset
 from dask import array as da
 from scipy.sparse import csr_matrix
+from tqdm import tqdm
+
+from scatlastb_utils.pipeline.misc import dask_compute
 
 from .config import ALL_SLOTS, print_flushed, zarr
 from .sparse_dask import read_as_dask_array, sparse_dataset_as_dask
@@ -22,7 +25,7 @@ from .subset_slots import set_mask_per_slot, subset_slot
 def get_file_reader(file):
     """Determine the file reader function based on the file extension."""
     file_path = Path(file)
-    if file_path.suffix in [".zarr", ".zarr/"]:
+    if file_path.suffix == ".zarr" or file_path.name.endswith(".zarr/raw"):
         func = zarr.open
         file_type = "zarr"
     elif file_path.suffix == ".h5ad":
@@ -161,6 +164,7 @@ def read_partial(
             keys = group[from_slot].keys()
             if from_slot == "raw":
                 keys = [key for key in keys if key in ["X", "var", "varm"]]
+            as_dask = from_slot in dask_slots and dask
             slots[to_slot] = {
                 sub_slot: read_slot(
                     file=file,
@@ -168,14 +172,14 @@ def read_partial(
                     slot_name=f"{from_slot}/{sub_slot}",
                     force_sparse_types=force_sparse_types,
                     force_slot_sparse=force_slot_sparse,
-                    backed=backed and from_slot in dask_slots,
-                    dask=dask and from_slot in dask_slots,
+                    backed=as_dask,
+                    dask=as_dask,
                     chunks=chunks,
                     stride=stride,
                     fail_on_missing=False,
-                    verbose=verbose,
+                    verbose=False,
                 )
-                for sub_slot in keys
+                for sub_slot in tqdm(keys, desc=f"Read {from_slot} slots as_dask={as_dask}", disable=not verbose)
             }
         else:
             slots[to_slot] = read_slot(
@@ -195,8 +199,9 @@ def read_partial(
     try:
         adata = ad.AnnData(**slots)
     except Exception as e:
-        print_flushed(f"Error reading {file}")
-        raise e
+        shapes = {slot: x.shape for slot, x in slots.items() if hasattr(x, "shape")}
+        message = f"Error reading {file}\nshapes: {pformat(shapes)}"
+        raise ValueError(message) from e
 
     if verbose:
         print_flushed("shape:", adata.shape, verbose=verbose)
@@ -405,7 +410,7 @@ def read_dask(
     return read_dispatched(group, callback=callback)
 
 
-def write_zarr(adata, file):
+def write_zarr(adata: ad.AnnData, file: str | Path, compute: bool = False):
     """Write AnnData object to zarr file. Cleans up data types before writing."""
 
     def sparse_coo_to_csr(matrix):
@@ -428,7 +433,10 @@ def write_zarr(adata, file):
                 # Convert non-NaN entries to string, preserve NaN values
                 adata.obs[col] = adata.obs[col].apply(lambda x: str(x) if pd.notna(x) else x).astype("category")
 
-    adata.write_zarr(file)  # doesn't seem to work with dask array
+    if compute:
+        adata = dask_compute(adata)
+
+    adata.write_zarr(file)
 
 
 def link_file(in_file, out_file, relative_path=True, overwrite=False, verbose=True):
@@ -549,12 +557,11 @@ def link_zarr(
             verbose=verbose,
         )
 
-    for slot in [x for x in ALL_SLOTS if x not in slots_to_link]:
-        set_mask_per_slot(
-            slot=slot,
-            mask=subset_mask,
-            out_dir=out_dir,
-        )
+    for slot in ALL_SLOTS:
+        if slot in slots_to_link or any(x.startswith(f"{slot}/") for x in slots_to_link):
+            set_mask_per_slot(slot=slot, mask=subset_mask, out_dir=out_dir)
+        else:
+            set_mask_per_slot(slot=slot, mask=None, out_dir=out_dir)
 
     for out_slot, in_slot in slot_map:
         if (
@@ -597,9 +604,12 @@ def write_zarr_linked(
         in_dirs = []
     else:
         in_dir = Path(in_dir)
-        if not in_dir.name.endswith((".zarr", ".zarr/")):
+        if in_dir.suffix != ".zarr" and not in_dir.name.endswith(".zarr/raw"):
+            print_flushed(
+                f"Warning: `{in_dir=!r}` is not a top-level zarr directory, not linking any files", verbose=True
+            )
             adata.write_zarr(out_dir)
-            return
+            return  # exit when in_dir is not a top-level zarr directory
         in_dirs = [f.name for f in in_dir.iterdir()]
 
     if files_to_keep is None:
