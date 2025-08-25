@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 import warnings
 from collections.abc import MutableMapping
@@ -64,6 +65,7 @@ def read_anndata(
     stride: int = 200_000,
     verbose: bool = True,
     dask_slots: list = None,
+    select_keys: str | list = None,
     **kwargs,
 ) -> ad.AnnData:
     """
@@ -107,6 +109,7 @@ def read_anndata(
         stride=stride,
         verbose=verbose,
         dask_slots=dask_slots,
+        select_keys=select_keys,
         **kwargs,
     )
     if not backed and file_type == "h5py":
@@ -126,6 +129,7 @@ def read_partial(
     force_sparse_slots: [str, list] = None,
     dask_slots: [str, list] = None,
     verbose: bool = False,
+    select_keys: str | list = None,
     **kwargs,
 ) -> ad.AnnData:
     """
@@ -137,6 +141,8 @@ def read_partial(
     :params dask: read any matrix as dask array
     :params chunks: chunks parameter for creating dask array
     :params stride: stride parameter for creating backed dask array
+    :params dask_slots: slots to read as dask array whenver possible
+    :params select_keys: regex pattern or list of keys to match slots that contain mappings (e.g. layers, uns, obsm)
     :params **kwargs: dict of to_slot: slot, by default use all available slot for the zarr file
     :return: AnnData object
     """
@@ -160,27 +166,36 @@ def read_partial(
         print_flushed(f'Read slot "{from_slot}", store as "{to_slot}"...', verbose=verbose)
         force_slot_sparse = any(from_slot.startswith((x, f"/{x}")) for x in force_sparse_slots)
 
-        if from_slot in ["layers", "raw", "obsm", "obsp"]:
+        if from_slot in ["layers", "raw", "obsm", "obsp", "uns"]:
             keys = group[from_slot].keys()
+
+            if isinstance(select_keys, str):
+                print_flushed(f"select only slots that match {select_keys}")
+                keys = [key for key in keys if re.match(select_keys, key)]
+            elif isinstance(select_keys, list):
+                keys = [key for key in keys if key in select_keys]
+
             if from_slot == "raw":
                 keys = [key for key in keys if key in ["X", "var", "varm"]]
-            as_dask = from_slot in dask_slots and dask
-            slots[to_slot] = {
-                sub_slot: read_slot(
-                    file=file,
-                    group=group,
-                    slot_name=f"{from_slot}/{sub_slot}",
-                    force_sparse_types=force_sparse_types,
-                    force_slot_sparse=force_slot_sparse,
-                    backed=as_dask,
-                    dask=as_dask,
-                    chunks=chunks,
-                    stride=stride,
-                    fail_on_missing=False,
-                    verbose=False,
-                )
-                for sub_slot in tqdm(keys, desc=f"Read {from_slot} slots as_dask={as_dask}", disable=not verbose)
-            }
+
+            if keys:
+                as_dask = from_slot in dask_slots and dask
+                slots[to_slot] = {
+                    sub_slot: read_slot(
+                        file=file,
+                        group=group,
+                        slot_name=f"{from_slot}/{sub_slot}",
+                        force_sparse_types=force_sparse_types,
+                        force_slot_sparse=force_slot_sparse,
+                        backed=as_dask,
+                        dask=as_dask,
+                        chunks=chunks,
+                        stride=stride,
+                        fail_on_missing=False,
+                        verbose=False,
+                    )
+                    for sub_slot in tqdm(keys, desc=f"Read {from_slot} slots as_dask={as_dask}", disable=not verbose)
+                }
         else:
             slots[to_slot] = read_slot(
                 file=file,
