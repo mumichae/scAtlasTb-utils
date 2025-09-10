@@ -19,6 +19,7 @@ def qc_joint(
     hue: str = None,
     main_plot_function: Callable = None,
     main_plot_kwargs: dict = None,
+    marginal_plot_function: Callable = None,
     marginal_hue=None,
     x_threshold=None,
     y_threshold=None,
@@ -97,6 +98,10 @@ def qc_joint(
 
     if main_plot_function is None:
         main_plot_function = sns.scatterplot
+
+    if marginal_plot_function is None:
+        marginal_plot_function = sns.histplot
+
     if not x_threshold:
         x_threshold = (0, np.inf)
     if not y_threshold:
@@ -114,12 +119,17 @@ def qc_joint(
         y_threshold = log1p_base(y_threshold, log_y)
         y = y_log
 
-    marginal_kwargs_defaults = dict(fill=False, bins=100, legend=False)
-    marginal_kwargs = (marginal_kwargs or {}) | marginal_kwargs_defaults
-
     if marginal_hue in df.columns:
         marginal_hue = None if df[marginal_hue].nunique() > 100 else marginal_hue
     use_marg_hue = marginal_hue is not None
+
+    marginal_kwargs_defaults = dict(
+        element="step" if use_marg_hue else "bars",
+        fill=False,
+        bins=100,
+        legend=False,
+    )
+    marginal_kwargs = (marginal_kwargs or {}) | marginal_kwargs_defaults
 
     if not use_marg_hue:
         marginal_kwargs.pop("palette", None)
@@ -142,10 +152,9 @@ def qc_joint(
 
     # marginal hist plot
     g.plot_marginals(
-        sns.histplot,
+        marginal_plot_function,
         data=df,
         hue=marginal_hue,
-        element="step" if use_marg_hue else "bars",
         **marginal_kwargs,
     )
 
