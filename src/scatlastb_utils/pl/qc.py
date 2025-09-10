@@ -163,6 +163,9 @@ def qc_joint(
     g._figsize = g.fig.get_size_inches()
 
     # handles, labels = g.ax_joint.get_legend_handles_labels()
+    # The legend marker size is scaled so that it appears similar to the scatter plot markers.
+    # 80 is the reference marker area for the legend, and 20 is the default marker size ('s') for scatter plots.
+    # This calculation ensures the legend marker size matches the plot marker size visually.
     markerscale = (80 / kwargs.get("s", 20)) ** 0.5
     g.ax_joint.legend(markerscale=markerscale)
 
