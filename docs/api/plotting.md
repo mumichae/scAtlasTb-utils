@@ -8,6 +8,5 @@
 .. autosummary::
     :toctree: ../generated
 
-    basic_plot
-    BasicClass
+    qc_joint
 ```

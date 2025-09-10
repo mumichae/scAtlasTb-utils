@@ -1,1 +1,1 @@
-from .basic import BasicClass, basic_plot
+from .qc import qc_joint
