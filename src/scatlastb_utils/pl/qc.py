@@ -119,7 +119,7 @@ def qc_joint(
         y_threshold = log1p_base(y_threshold, log_y)
         y = y_log
 
-    if marginal_hue in df.columns:
+    if marginal_hue is not None and marginal_hue in df.columns:
         marginal_hue = None if df[marginal_hue].nunique() > 100 else marginal_hue
     use_marg_hue = marginal_hue is not None
 
