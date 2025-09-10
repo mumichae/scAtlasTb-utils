@@ -5,6 +5,11 @@ import seaborn as sns
 from anndata import AnnData
 
 
+def log1p_base(_x, base):
+    """Log(x+1) for custom base. TODO: move elsewhere"""
+    return np.log1p(_x) / np.log(base)
+
+
 def qc_joint(
     adata: AnnData,
     x: str,
@@ -74,9 +79,6 @@ def qc_joint(
         x_threshold = (0, np.inf)
     if not y_threshold:
         y_threshold = (0, np.inf)
-
-    def log1p_base(_x, base):
-        return np.log1p(_x) / np.log(base)
 
     if log_x > 1:
         x_log = f"log{log_x} {x}"
