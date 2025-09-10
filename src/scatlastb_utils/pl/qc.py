@@ -20,7 +20,7 @@ def qc_joint(
     main_plot_function: Callable = None,
     main_plot_kwargs: dict = None,
     marginal_plot_function: Callable = None,
-    marginal_hue=None,
+    marginal_hue: str = None,
     x_threshold=None,
     y_threshold=None,
     title="",
