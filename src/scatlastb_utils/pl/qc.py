@@ -170,13 +170,13 @@ def qc_joint(
     g.ax_joint.legend(markerscale=markerscale)
 
     # x threshold
-    for t, t_def in zip(x_threshold, (0, np.inf), strict=False):
+    for t, t_def in zip(x_threshold, (0, np.inf), strict=True):
         if t != t_def:
             g.ax_joint.axvline(x=t, color="red")
             g.ax_marg_x.axvline(x=t, color="red")
 
     # y threshold
-    for t, t_def in zip(y_threshold, (0, np.inf), strict=False):
+    for t, t_def in zip(y_threshold, (0, np.inf), strict=True):
         if t != t_def:
             g.ax_joint.axhline(y=t, color="red")
             g.ax_marg_y.axhline(y=t, color="red")
