@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 import numpy as np
 import seaborn as sns
 from anndata import AnnData
@@ -10,7 +12,8 @@ def qc_joint(
     log_x: int = 1,
     log_y: int = 1,
     hue: str = None,
-    main_plot_function=None,
+    main_plot_function: Callable = None,
+    main_plot_kwargs: dict = None,
     marginal_hue=None,
     x_threshold=None,
     y_threshold=None,
@@ -20,6 +23,8 @@ def qc_joint(
     **kwargs,
 ):
     """Plot scatter plot with marginal histograms from df columns.
+
+    This function wraps the `seaborn.JointGrid <https://seaborn.pydata.org/generated/seaborn.JointGrid.html>`_ function
 
     Parameters
     ----------
@@ -37,8 +42,11 @@ def qc_joint(
         Column in `adata.obs` with annotations for color coding scatter plot points.
     main_plot_function
         Function to use for the main joint plot. Defaults to `seaborn.scatterplot`.
-    marginal_hue
-        Column in `adata.obs` with annotations for color coding marginal plot distributions.
+    marginal_plot_function
+        Function to use for the marginal plot passed to
+        `seaborn's JointGrid.plot_marginals function <https://seaborn.pydata.org/generated/seaborn.JointGrid.plot_marginals.html#seaborn.JointGrid.plot_marginals>`_
+    marginal_kwargs
+        Additional keyword arguments passed to the marginal plots (histograms/KDEs).
     x_threshold
         Tuple of upper and lower filter thresholds for x axis.
     y_threshold
@@ -47,8 +55,6 @@ def qc_joint(
         Title text for plot.
     return_df
         If `True`, return the DataFrame used for plotting along with the JointGrid.
-    marginal_kwargs
-        Additional keyword arguments passed to the marginal plots (histograms/KDEs).
     **kwargs
         Additional keyword arguments passed to the main plot function.
 
