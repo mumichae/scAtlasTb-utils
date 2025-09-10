@@ -122,7 +122,13 @@ def test_qc_joint_kwargs_passed_to_main_plot_function(qc_adata):
     """
     Test that additional kwargs are passed to the main plot function (e.g., scatterplot 's' for size).
     """
-    g = qc_joint(qc_adata, x="n_genes", y="n_counts", s=50, alpha=0.5)
+    g = qc_joint(
+        qc_adata,
+        x="n_genes",
+        y="n_counts",
+        s=50,
+        alpha=0.5,
+    )
     assert isinstance(g, sns.JointGrid)
 
     # Check if scatterplot points have the specified size and alpha.

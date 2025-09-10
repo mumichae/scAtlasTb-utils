@@ -69,6 +69,28 @@ def qc_joint(
         A `seaborn.axisgrid.JointGrid` object.
     out_df
         A `pandas.DataFrame` with updated values. Only returned if `return_df` is `True`.
+
+    Examples
+    --------
+
+    .. plot::
+        :include-source:
+        :context: close-figs
+
+        import scanpy as sc
+        import scatlastb_utils as atl
+
+        adata = sc.datasets.pbmc68k_reduced()
+        atl.pl.qc_joint(
+            adata,
+            x="n_genes",
+            y="n_counts",
+            hue="bulk_labels",
+            # additional kwargs to pass to main_plot_function
+            s=10,
+            alpha=0.5,
+        )
+
     """
     columns = [col for col in adata.obs.columns if col in [x, y, hue, marginal_hue]]
     df = adata.obs[columns].copy()
