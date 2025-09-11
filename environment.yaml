@@ -1,0 +1,18 @@
+name: scatlastb
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.12
+  - uv
+  - anndata>=0.11
+  - dask<2024.8
+  - dask-ml
+  - h5py>=1.14.2
+  - leidenalg
+  - scanpy>=1.11
+  - scipy<1.15
+  - session-info2
+  - snakemake<7.32
+  - sparse
+  - zarr<3
