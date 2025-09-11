@@ -15,7 +15,7 @@ from .config import ALL_SLOTS, print_flushed
 from .subset_slots import set_mask_per_slot
 
 
-def write_zarr(adata: ad.AnnData, file: str | Path, compute: bool = False):
+def write_zarr(adata: ad.AnnData, file: str | Path, compute: bool = False) -> None:
     """Write AnnData object to zarr file. Cleans up data types before writing."""
 
     def sparse_coo_to_csr(matrix):
@@ -44,7 +44,13 @@ def write_zarr(adata: ad.AnnData, file: str | Path, compute: bool = False):
     adata.write_zarr(file)
 
 
-def link_file(in_file, out_file, relative_path=True, overwrite=False, verbose=True):
+def link_file(
+    in_file: str | Path,
+    out_file: str | Path,
+    relative_path: bool = True,
+    overwrite: bool = False,
+    verbose: bool = True,
+) -> None:
     """Link an existing file to a new location."""
     in_file = Path(in_file).resolve(True)
     out_file = Path(out_file)
@@ -66,16 +72,16 @@ def link_file(in_file, out_file, relative_path=True, overwrite=False, verbose=Tr
 
 
 def link_zarr(
-    in_dir: [str, Path],
-    out_dir: [str, Path],
-    file_names: list = None,
+    in_dir: str | Path,
+    out_dir: str | Path,
+    file_names: list[str] | None = None,
     overwrite: bool = False,
     relative_path: bool = True,
-    slot_map: MutableMapping = None,
-    in_dir_map: MutableMapping = None,
-    subset_mask: tuple = None,
+    slot_map: MutableMapping | None = None,
+    in_dir_map: MutableMapping | None = None,
+    subset_mask: tuple | None = None,
     verbose: bool = True,
-):
+) -> None:
     """
     Link to existing zarr file
 
@@ -187,14 +193,14 @@ def link_zarr(
 def write_zarr_linked(
     adata: ad.AnnData,
     in_dir: str | Path,
-    out_dir: [str, Path],
+    out_dir: str | Path,
     relative_path: bool = True,
-    files_to_keep: list = None,
-    slot_map: MutableMapping = None,
-    in_dir_map: MutableMapping = None,
+    files_to_keep: list[str] | None = None,
+    slot_map: MutableMapping | None = None,
+    in_dir_map: MutableMapping | None = None,
     verbose: bool = True,
-    subset_mask: tuple = None,
-):
+    subset_mask: tuple | None = None,
+) -> None:
     """
     Write adata to linked zarr file
 

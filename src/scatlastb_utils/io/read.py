@@ -1,13 +1,14 @@
 import re
 import warnings
+from collections.abc import Callable
 from pathlib import Path
 from pprint import pformat
+from typing import Any
 
 import anndata as ad
 import h5py
 import numpy as np
 from anndata.io import read_elem, sparse_dataset
-from dask import array as da
 from scipy.sparse import csr_matrix
 from tqdm import tqdm
 
@@ -16,7 +17,7 @@ from .sparse_dask import read_as_dask_array, sparse_dataset_as_dask
 from .subset_slots import subset_slot
 
 
-def get_file_reader(file):
+def get_file_reader(file: str | Path) -> tuple[Callable, str]:
     """Determine the file reader function based on the file extension."""
     file_path = Path(file)
     if file_path.suffix == ".zarr" or file_path.name.endswith(".zarr/raw"):
@@ -30,7 +31,7 @@ def get_file_reader(file):
     return func, file_type
 
 
-def get_store(file, return_file_type=False):
+def get_store(file: str | Path, return_file_type: bool = False) -> Any | tuple[Any, str]:
     """Get the store for the given file."""
     func, file_type = get_file_reader(file)
     try:
@@ -42,7 +43,7 @@ def get_store(file, return_file_type=False):
     return store
 
 
-def check_slot_exists(file, slot):
+def check_slot_exists(file: str | Path, slot: str) -> bool:
     """Check if a specific slot exists in the file without needing to read the file."""
     store = get_store(file)
     return slot in store
@@ -53,13 +54,13 @@ def read_anndata(
     dask: bool = False,
     backed: bool = False,
     fail_on_missing: bool = True,
-    exclude_slots: list = None,
-    chunks: [int, tuple] = None,
+    exclude_slots: list[str] = None,
+    chunks: int | tuple = None,
     stride: int = 200_000,
     verbose: bool = True,
-    dask_slots: list = None,
-    select_keys: str | list = None,
-    **kwargs,
+    dask_slots: list[str] | None = None,
+    select_keys: str | list[str] | None = None,
+    **kwargs: Any,
 ) -> ad.AnnData:
     """
     Read anndata file
@@ -113,17 +114,17 @@ def read_anndata(
 
 def read_partial(
     file: str,
-    group: [h5py.Group, zarr.Group],
+    group: h5py.Group | zarr.Group,
     backed: bool = False,
     dask: bool = False,
-    chunks: [int, tuple] = ("auto", -1),
+    chunks: int | tuple = None,
     stride: int = 1000,
-    force_sparse_types: [str, list] = None,
-    force_sparse_slots: [str, list] = None,
-    dask_slots: [str, list] = None,
+    force_sparse_types: str | list[str] | None = None,
+    force_sparse_slots: str | list[str] | None = None,
+    dask_slots: str | list[str] | None = None,
     verbose: bool = False,
-    select_keys: str | list = None,
-    **kwargs,
+    select_keys: str | list[str] | None = None,
+    **kwargs: Any,
 ) -> ad.AnnData:
     """
     Partially read zarr or h5py groups
@@ -218,18 +219,18 @@ def read_partial(
 
 
 def read_slot(
-    file: [str, Path],
-    group: [h5py.Group, zarr.Group],
+    file: str | Path,
+    group: h5py.Group | zarr.Group | None,
     slot_name: str,
-    force_sparse_types: [str, list] = None,
+    force_sparse_types: str | list[str] | None = None,
     force_slot_sparse: bool = False,
     backed: bool = False,
     dask: bool = False,
-    chunks: [int, tuple] = ("auto", -1),
+    chunks: int | tuple = None,
     stride: int = 1000,
     fail_on_missing: bool = True,
     verbose: bool = True,
-):
+) -> Any:
     """
     Read a specific slot from a zarr or h5py group.
 
@@ -296,15 +297,15 @@ def read_slot(
 
 
 def _read_slot_dask(
-    group,
-    slot,
-    force_sparse_types,
-    force_slot_sparse,
-    stride,
-    chunks,
-    backed,
-    verbose,
-):
+    group: h5py.Group | zarr.Group,
+    slot: str,
+    force_sparse_types: str | list[str],
+    force_slot_sparse: bool,
+    stride: int,
+    chunks: int | tuple,
+    backed: bool,
+    verbose: bool,
+) -> Any:
     """
     Read a slot as dask array or backed sparse matrix.
 
@@ -340,7 +341,14 @@ def _read_slot_dask(
     return read_elem(elem)
 
 
-def _read_slot_default(group, slot, force_sparse_types, force_slot_sparse, backed, verbose):
+def _read_slot_default(
+    group: h5py.Group | zarr.Group,
+    slot: str,
+    force_sparse_types: str | list[str],
+    force_slot_sparse: bool,
+    backed: bool,
+    verbose: bool,
+) -> Any:
     elem = group[slot]
     iospec = ad._io.specs.get_spec(elem)
 
@@ -356,7 +364,7 @@ def _read_slot_default(group, slot, force_sparse_types, force_slot_sparse, backe
         return read_elem(elem)
 
 
-def csr_matrix_int64_indptr(x):
+def csr_matrix_int64_indptr(x: Any) -> csr_matrix:
     """
     Convert a sparse matrix to csr_matrix with int64 indices and indptr.
 
@@ -370,49 +378,3 @@ def csr_matrix_int64_indptr(x):
         # seems to be necessary to avoid "ValueError: Output dtype not compatible with inputs."
         x.indices = x.indices.astype(np.int64)
     return x
-
-
-# deprecated
-def read_dask(
-    group: [h5py.Group, zarr.Group],
-    backed: bool = False,
-    obs_chunk: int = 1000,
-    **kwargs,
-) -> ad.AnnData:
-    """Modified from https://anndata.readthedocs.io/en/latest/tutorials/notebooks/%7Bread%2Cwrite%7D_dispatched.html"""
-    from anndata.io import read_dispatched
-
-    from .sparse_dask import sparse_dataset_as_dask
-
-    def callback(func, elem_name: str, elem, iospec):
-        import re
-
-        import sparse
-
-        elem_matches = [
-            not (bool(re.match(f"/{e}(/.?|$)", elem_name)) or f"/{e}".startswith(elem_name)) for e in kwargs.values()
-        ]
-        if elem_name != "/" and all(elem_matches):
-            print_flushed("skip reading", elem_name)
-            return None
-        else:
-            print_flushed("read", elem_name)
-
-        if elem_name != "/" and all(elem_matches):
-            print_flushed("skip reading", elem_name)
-            return None
-        elif iospec.encoding_type in (
-            "dataframe",
-            "awkward-array",
-        ):
-            # Preventing recursing inside of these types
-            return read_elem(elem)
-        elif iospec.encoding_type in ("csr_matrix", "csc_matrix"):
-            # return da.from_array(read_elem(elem))
-            matrix = sparse_dataset_as_dask(sparse_dataset(elem), obs_chunk)
-            return matrix.map_blocks(sparse.COO)
-        elif iospec.encoding_type == "array":
-            return da.from_zarr(elem)
-        return func(elem)
-
-    return read_dispatched(group, callback=callback)
