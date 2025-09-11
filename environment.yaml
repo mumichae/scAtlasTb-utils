@@ -5,6 +5,7 @@ channels:
 dependencies:
   - python=3.12
   - uv
+  - hatch
   - anndata>=0.11
   - dask<2024.8
   - dask-ml
