@@ -1,9 +1,11 @@
-from .basic import (
+from .read import (
     get_file_reader,
-    link_file,
-    link_zarr,
     read_anndata,
     read_slot,
+)
+from .write import (
+    link_file,
+    link_zarr,
     write_zarr,
     write_zarr_linked,
 )
