@@ -16,7 +16,18 @@ from .subset_slots import set_mask_per_slot
 
 
 def write_zarr(adata: ad.AnnData, file: str | Path, compute: bool = False) -> None:
-    """Write AnnData object to zarr file. Cleans up data types before writing."""
+    """
+    Write AnnData object to zarr file. Cleans up data types before writing.
+
+    Parameters
+    ----------
+    adata
+        AnnData object to write.
+    file
+        Path to output zarr file.
+    compute, optional
+        Whether to compute dask arrays before writing. Default is False.
+    """
 
     def sparse_coo_to_csr(matrix):
         import sparse
@@ -51,7 +62,22 @@ def link_file(
     overwrite: bool = False,
     verbose: bool = True,
 ) -> None:
-    """Link an existing file to a new location."""
+    """
+    Link an existing file to a new location.
+
+    Parameters
+    ----------
+    in_file
+        Path to the input file to link from.
+    out_file
+        Path to the output file to link to.
+    relative_path, optional
+        Use relative path for the link. Default is True.
+    overwrite, optional
+        Overwrite the output file if it exists. Default is False.
+    verbose, optional
+        Whether to print verbose output. Default is True.
+    """
     in_file = Path(in_file).resolve(True)
     out_file = Path(out_file)
     out_dir = out_file.parent.resolve()
@@ -83,17 +109,28 @@ def link_zarr(
     verbose: bool = True,
 ) -> None:
     """
-    Link to existing zarr file
+    Link to existing zarr file.
 
-    :param in_dir: path to existing zarr file or mapping of input slot in slot_map to input path
-    :param out_dir: path to output zarr file
-    :param file_names: list of files to link, if None, link all files
-    :param overwrite: overwrite existing output files
-    :param relative_path: use relative path for link
-    :param slot_map: custom mapping of output slot to input slots
-    :param in_dir_map: input directory map for input slots
-    :param kwargs: custom mapping of output slot to input slot,
-        will update default mapping of same input and output naming
+    Parameters
+    ----------
+    in_dir
+        Path to existing zarr file or mapping of input slot in slot_map to input path.
+    out_dir
+        Path to output zarr file.
+    file_names, optional
+        List of files to link. If None, link all files. Default is None.
+    overwrite, optional
+        Overwrite existing output files. Default is False.
+    relative_path, optional
+        Use relative path for link. Default is True.
+    slot_map, optional
+        Custom mapping of output slot to input slots. Default is None.
+    in_dir_map, optional
+        Input directory map for input slots. Default is None.
+    subset_mask, optional
+        Mask to apply to slots. Default is None.
+    verbose, optional
+        Whether to print verbose output. Default is True.
     """
 
     def prune_nested_links(slot_map, in_dir_map):
@@ -202,14 +239,28 @@ def write_zarr_linked(
     subset_mask: tuple | None = None,
 ) -> None:
     """
-    Write adata to linked zarr file
+    Write AnnData object to a linked zarr file.
 
-    :param adata: AnnData object
-    :param in_dir: path to existing zarr file
-    :param out_dir: path to output zarr file
-    :param files_to_keep: list of files to keep and not overwrite
-    :param relative_path: use relative path for link
-    :param slot_map: custom mapping of output slot to input slot, for slots that are not in files_to_keep
+    Parameters
+    ----------
+    adata
+        AnnData object to write.
+    in_dir
+        Path to existing zarr file.
+    out_dir
+        Path to output zarr file.
+    relative_path, optional
+        Use relative path for link. Default is True.
+    files_to_keep, optional
+        List of files to keep and not overwrite. Default is None.
+    slot_map, optional
+        Custom mapping of output slot to input slot, for slots that are not in files_to_keep. Default is None.
+    in_dir_map, optional
+        Input directory map for input slots. Default is None.
+    verbose, optional
+        Whether to print verbose output. Default is True.
+    subset_mask, optional
+        Mask to apply to slots. Default is None.
     """
     if in_dir is None:
         in_dirs = []

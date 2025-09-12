@@ -18,7 +18,26 @@ from .subset_slots import subset_slot
 
 
 def get_file_reader(file: str | Path) -> tuple[Callable, str]:
-    """Determine the file reader function based on the file extension."""
+    """
+    Determine the file reader function based on the file extension.
+
+    Parameters
+    ----------
+    file
+        Path to the file.
+
+    Returns
+    -------
+    func
+        The function to open the file.
+    file_type
+        The type of the file ('zarr' or 'h5py').
+
+    Raises
+    ------
+    ValueError
+        If the file format is unknown.
+    """
     file_path = Path(file)
     if file_path.suffix == ".zarr" or file_path.name.endswith(".zarr/raw"):
         func = zarr.open
@@ -32,7 +51,28 @@ def get_file_reader(file: str | Path) -> tuple[Callable, str]:
 
 
 def get_store(file: str | Path, return_file_type: bool = False) -> Any | tuple[Any, str]:
-    """Get the store for the given file."""
+    """
+    Get the store for the given file.
+
+    Parameters
+    ----------
+    file
+        Path to the file.
+    return_file_type
+        Whether to return the file type along with the store. Default is False.
+
+    Returns
+    -------
+    store
+        The opened file store.
+    file_type
+        The type of the file, if return_file_type is True.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the file cannot be read.
+    """
     func, file_type = get_file_reader(file)
     try:
         store = func(file, "r")
@@ -44,7 +84,21 @@ def get_store(file: str | Path, return_file_type: bool = False) -> Any | tuple[A
 
 
 def check_slot_exists(file: str | Path, slot: str) -> bool:
-    """Check if a specific slot exists in the file without needing to read the file."""
+    """
+    Check if a specific slot exists in the file without needing to read the file.
+
+    Parameters
+    ----------
+    file
+        Path to the file.
+    slot
+        Name of the slot to check.
+
+    Returns
+    -------
+    exists
+        True if the slot exists, False otherwise.
+    """
     store = get_store(file)
     return slot in store
 
@@ -63,10 +117,42 @@ def read_anndata(
     **kwargs: Any,
 ) -> ad.AnnData:
     """
-    Read anndata file
+    Read an AnnData file from zarr or h5ad format.
 
-    :param file: path to anndata file in zarr or h5ad format
-    :param kwargs: AnnData parameter to zarr group mapping
+    Parameters
+    ----------
+    file
+        Path to anndata file in zarr or h5ad format.
+    dask
+        Whether to read arrays as dask arrays. Default is False.
+    backed
+        Whether to read in backed mode. Default is False.
+    fail_on_missing
+        Whether to fail if a slot is missing. Default is True.
+    exclude_slots
+        Slots to exclude from reading. Default is None.
+    chunks
+        Chunk size for dask arrays. Default is None.
+    stride
+        Stride for dask arrays. Default is 200_000.
+    verbose
+        Whether to print verbose output. Default is True.
+    dask_slots
+        Slots to read as dask arrays. Default is None.
+    select_keys
+        Keys to select for reading. Default is None.
+    **kwargs
+        Additional keyword arguments mapping AnnData parameters to zarr group slots.
+
+    Returns
+    -------
+    adata
+        The loaded AnnData object.
+
+    Raises
+    ------
+    ValueError
+        If a required slot is missing and fail_on_missing is True.
     """
     # assert Path(file).exists(), f'File not found: {file}'
     if exclude_slots is None:
@@ -127,18 +213,44 @@ def read_partial(
     **kwargs: Any,
 ) -> ad.AnnData:
     """
-    Partially read zarr or h5py groups
+    Partially read zarr or h5py groups into an AnnData object.
 
-    :params group: file group
-    :params force_sparse_types: encoding types to convert to sparse_dataset via csr_matrix
-    :params backed: read sparse matrix as sparse_dataset
-    :params dask: read any matrix as dask array
-    :params chunks: chunks parameter for creating dask array
-    :params stride: stride parameter for creating backed dask array
-    :params dask_slots: slots to read as dask array whenver possible
-    :params select_keys: regex pattern or list of keys to match slots that contain mappings (e.g. layers, uns, obsm)
-    :params **kwargs: dict of to_slot: slot, by default use all available slot for the zarr file
-    :return: AnnData object
+    Parameters
+    ----------
+    file
+        Path to the file.
+    group
+        File group to read from.
+    backed
+        Whether to read sparse matrix as sparse_dataset. Default is False.
+    dask
+        Whether to read any matrix as dask array. Default is False.
+    chunks
+        Chunks parameter for creating dask array. Default is None.
+    stride
+        Stride parameter for creating backed dask array. Default is 1000.
+    force_sparse_types
+        Encoding types to convert to sparse_dataset via csr_matrix. Default is None.
+    force_sparse_slots
+        Slots to force as sparse. Default is None.
+    dask_slots
+        Slots to read as dask array when possible. Default is None.
+    verbose
+        Whether to print verbose output. Default is False.
+    select_keys
+        Regex pattern or list of keys to match slots that contain mappings. Default is None.
+    **kwargs
+        Mapping of to_slot: slot, by default use all available slots for the zarr file.
+
+    Returns
+    -------
+    adata
+        The loaded AnnData object.
+
+    Raises
+    ------
+    ValueError
+        If there is an error reading the file or slot shapes are incompatible.
     """
     if force_sparse_slots is None:
         force_sparse_slots = []
@@ -234,18 +346,40 @@ def read_slot(
     """
     Read a specific slot from a zarr or h5py group.
 
-    :param file: path to the zarr or h5ad file
-    :param group: h5py.Group or zarr.Group to read from
-    :param slot_name: name of the slot to read
-    :param force_sparse_types: list of encoding types to convert to sparse_dataset via csr_matrix
-    :param force_slot_sparse: whether to force the slot to be read as sparse
-    :param backed: read sparse matrix as sparse_dataset
-    :param dask: read any matrix as dask array
-    :param chunks: chunks parameter for creating dask array
-    :param stride: stride parameter for creating backed dask array
-    :param fail_on_missing: whether to raise an error if the slot is not found
-    :param verbose: whether to print verbose output
-    :return: the read slot as an AnnData object or a dask array
+    Parameters
+    ----------
+    file
+        Path to the zarr or h5ad file.
+    group
+        File group to read from.
+    slot_name
+        Name of the slot to read.
+    force_sparse_types
+        Encoding types to convert to sparse_dataset via csr_matrix. Default is None.
+    force_slot_sparse
+        Whether to force the slot to be read as sparse. Default is False.
+    backed
+        Whether to read sparse matrix as sparse_dataset. Default is False.
+    dask
+        Whether to read any matrix as dask array. Default is False.
+    chunks
+        Chunks parameter for creating dask array. Default is None.
+    stride
+        Stride parameter for creating backed dask array. Default is 1000.
+    fail_on_missing
+        Whether to raise an error if the slot is not found. Default is True.
+    verbose
+        Whether to print verbose output. Default is True.
+
+    Returns
+    -------
+    slot
+        The read slot as an AnnData object or a dask array.
+
+    Raises
+    ------
+    ValueError
+        If the slot is not found and fail_on_missing is True.
     """
     if group is None:
         group = get_store(file)
@@ -309,10 +443,29 @@ def _read_slot_dask(
     """
     Read a slot as dask array or backed sparse matrix.
 
-    :param group: h5py.Group or zarr.Group
-    :param slot: slot name
-    :stride: stride parameter for creating backed dask array, ignored when backed=False
-    :chunks: chunks parameter for creating dask array ignored when backed=True
+    Parameters
+    ----------
+    group
+        File group to read from.
+    slot
+        Slot name.
+    force_sparse_types
+        Encoding types to convert to sparse_dataset via csr_matrix.
+    force_slot_sparse
+        Whether to force the slot to be read as sparse.
+    stride
+        Stride parameter for creating backed dask array, ignored when backed=False.
+    chunks
+        Chunks parameter for creating dask array, ignored when backed=True.
+    backed
+        Whether to read sparse matrix as sparse_dataset.
+    verbose
+        Whether to print verbose output.
+
+    Returns
+    -------
+    slot
+        The read slot as a dask array or sparse matrix.
     """
     elem = group[slot]
     iospec = ad._io.specs.get_spec(elem)
@@ -349,6 +502,29 @@ def _read_slot_default(
     backed: bool,
     verbose: bool,
 ) -> Any:
+    """
+    Read a slot using the default method (not dask).
+
+    Parameters
+    ----------
+    group
+        File group to read from.
+    slot
+        Slot name.
+    force_sparse_types
+        Encoding types to convert to sparse_dataset via csr_matrix.
+    force_slot_sparse
+        Whether to force the slot to be read as sparse.
+    backed
+        Whether to read sparse matrix as sparse_dataset.
+    verbose
+        Whether to print verbose output.
+
+    Returns
+    -------
+    slot
+        The read slot as a dense or sparse matrix.
+    """
     elem = group[slot]
     iospec = ad._io.specs.get_spec(elem)
 
@@ -368,7 +544,17 @@ def csr_matrix_int64_indptr(x: Any) -> csr_matrix:
     """
     Convert a sparse matrix to csr_matrix with int64 indices and indptr.
 
-    Workaround to automatic downcasting of scipy sparse matrices.
+    This is a workaround for automatic downcasting of scipy sparse matrices.
+
+    Parameters
+    ----------
+    x
+        Input sparse matrix or array.
+
+    Returns
+    -------
+    csr
+        Matrix with int64 indices and indptr.
     """
     if not isinstance(x, csr_matrix):
         x = csr_matrix(x)
