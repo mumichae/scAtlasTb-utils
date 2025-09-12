@@ -153,6 +153,91 @@ def read_anndata(
     ------
     ValueError
         If a required slot is missing and fail_on_missing is True.
+
+    Examples
+    --------
+    Basic usage:
+
+    >>> from scatlastb_utils.io import read_anndata
+    >>> adata = read_anndata("example.h5ad", verbose=False)
+
+    >>> adata = read_anndata("example.zarr")
+    dask: False, backed: False
+    Read slot "X", store as "X"...
+    Read X and convert to csr matrix...
+    Read slot "layers", store as "layers"...
+    Read slot "obs", store as "obs"...
+    Read slot "obsm", store as "obsm"...
+    Read obsm slots as_dask=False: 100%|██████████████████████| 2/2 [00:00<00:00, 4080.06it/s]
+    Read slot "obsp", store as "obsp"...
+    Read obsp slots as_dask=False: 100%|██████████████████████| 2/2 [00:00<00:00, 1916.08it/s]
+    Read slot "raw", store as "raw"...
+    Read raw slots as_dask=False: 100%|███████████████████████| 3/3 [00:00<00:00, 1759.85it/s]
+    Read slot "uns", store as "uns"...
+    Read uns slots as_dask=False: 100%|███████████████████████| 6/6 [00:00<00:00, 1914.04it/s]
+    Read slot "var", store as "var"...
+    Read slot "varm", store as "varm"...
+    Read slot "varp", store as "varp"...
+    shape: (700, 765)
+
+    >>> adata
+    AnnData object with n_obs × n_vars = 700 × 765
+        obs: 'bulk_labels', 'n_genes', 'percent_mito', 'n_counts', 'S_score', 'G2M_score', 'phase', 'louvain'
+        var: 'n_counts', 'means', 'dispersions', 'dispersions_norm', 'highly_variable'
+        uns: 'bulk_labels_colors', 'louvain', 'louvain_colors', 'neighbors', 'pca', 'rank_genes_groups'
+        obsm: 'X_pca', 'X_umap'
+        varm: 'PCs'
+        obsp: 'connectivities', 'distances'
+
+    Select custom slots:
+
+    >>> read_anndata("example.zarr", X="X", obs="obs", var="var", uns="uns", verbose=False)
+    AnnData object with n_obs × n_vars = 700 × 765
+        obs: 'bulk_labels', 'n_genes', 'percent_mito', 'n_counts', 'S_score', 'G2M_score', 'phase', 'louvain'
+        var: 'n_counts', 'means', 'dispersions', 'dispersions_norm', 'highly_variable'
+        uns: 'bulk_labels_colors', 'louvain', 'louvain_colors', 'neighbors', 'pca', 'rank_genes_groups'
+
+    >>> read_anndata("example.zarr", X="raw/X", obs="obs", var="var", uns="uns", verbose=False)
+    AnnData object with n_obs × n_vars = 700 × 765
+        obs: 'bulk_labels', 'n_genes', 'percent_mito', 'n_counts', 'S_score', 'G2M_score', 'phase', 'louvain'
+        var: 'n_counts', 'means', 'dispersions', 'dispersions_norm', 'highly_variable'
+        uns: 'bulk_labels_colors', 'louvain', 'louvain_colors', 'neighbors', 'pca', 'rank_genes_groups'
+
+    >>> read_anndata("example.zarr", X="obsm/X_pca", obs="obs", uns="uns", verbose=False)
+    AnnData object with n_obs × n_vars = 700 × 50
+        obs: 'bulk_labels', 'n_genes', 'percent_mito', 'n_counts', 'S_score', 'G2M_score', 'phase', 'louvain'
+        uns: 'bulk_labels_colors', 'louvain', 'louvain_colors', 'neighbors', 'pca', 'rank_genes_groups'
+
+    Load slots with dask:
+
+    >>> read_anndata("example.zarr", dask=True, backed=True)
+    dask: True, backed: True
+    chunks: (200000, -1)
+    Read slot "X", store as "X"...
+    Read X as dask array and convert blocks to csr_matrix...
+    Read and convert to dask array
+    Read slot "layers", store as "layers"...
+    Read slot "obs", store as "obs"...
+    Read slot "obsm", store as "obsm"...
+    Read obsm slots as_dask=False: 100%|██████████████████████| 2/2 [00:00<00:00, 4359.98it/s]
+    Read slot "obsp", store as "obsp"...
+    Read obsp slots as_dask=False: 100%|██████████████████████| 2/2 [00:00<00:00, 2125.31it/s]
+    Read slot "raw", store as "raw"...
+    Read raw slots as_dask=True: 100%|████████████████████████| 3/3 [00:00<00:00, 1321.04it/s]
+    Read slot "uns", store as "uns"...
+    Read uns slots as_dask=False: 100%|███████████████████████| 6/6 [00:00<00:00, 1596.82it/s]
+    Read slot "var", store as "var"...
+    Read slot "varm", store as "varm"...
+    Read slot "varp", store as "varp"...
+    shape: (700, 765)
+    AnnData object with n_obs × n_vars = 700 × 765
+        obs: 'bulk_labels', 'n_genes', 'percent_mito', 'n_counts', 'S_score', 'G2M_score', 'phase', 'louvain'
+        var: 'n_counts', 'means', 'dispersions', 'dispersions_norm', 'highly_variable'
+        uns: 'bulk_labels_colors', 'louvain', 'louvain_colors', 'neighbors', 'pca', 'rank_genes_groups'
+        obsm: 'X_pca', 'X_umap'
+        varm: 'PCs'
+        obsp: 'connectivities', 'distances'
+
     """
     # assert Path(file).exists(), f'File not found: {file}'
     if exclude_slots is None:
