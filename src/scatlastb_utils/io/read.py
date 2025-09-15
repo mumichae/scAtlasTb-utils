@@ -643,9 +643,9 @@ def csr_matrix_int64_indptr(x: Any) -> csr_matrix:
     """
     if not isinstance(x, csr_matrix):
         x = csr_matrix(x)
-    if isinstance(x.indptr, np.int32):
+    if x.indptr.dtype == np.int32:
         x.indptr = x.indptr.astype(np.int64)
-    if isinstance(x.indices, np.int32):
+    if x.indices.dtype == np.int32:
         # seems to be necessary to avoid "ValueError: Output dtype not compatible with inputs."
         x.indices = x.indices.astype(np.int64)
     return x
