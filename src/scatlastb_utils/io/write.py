@@ -25,7 +25,7 @@ def write_zarr(adata: ad.AnnData, file: str | Path, compute: bool = False) -> No
         AnnData object to write.
     file
         Path to output zarr file.
-    compute, optional
+    compute
         Whether to compute dask arrays before writing. Default is False.
     """
 
@@ -71,11 +71,11 @@ def link_file(
         Path to the input file to link from.
     out_file
         Path to the output file to link to.
-    relative_path, optional
+    relative_path
         Use relative path for the link. Default is True.
-    overwrite, optional
+    overwrite
         Overwrite the output file if it exists. Default is False.
-    verbose, optional
+    verbose
         Whether to print verbose output. Default is True.
     """
     in_file = Path(in_file).resolve(True)
@@ -117,19 +117,19 @@ def link_zarr(
         Path to existing zarr file or mapping of input slot in slot_map to input path.
     out_dir
         Path to output zarr file.
-    file_names, optional
+    file_names
         List of files to link. If None, link all files. Default is None.
-    overwrite, optional
+    overwrite
         Overwrite existing output files. Default is False.
-    relative_path, optional
+    relative_path
         Use relative path for link. Default is True.
-    slot_map, optional
+    slot_map
         Custom mapping of output slot to input slots. Default is None.
-    in_dir_map, optional
+    in_dir_map
         Input directory map for input slots. Default is None.
-    subset_mask, optional
+    subset_mask
         Mask to apply to slots. Default is None.
-    verbose, optional
+    verbose
         Whether to print verbose output. Default is True.
     """
 
@@ -249,17 +249,17 @@ def write_zarr_linked(
         Path to existing zarr file.
     out_dir
         Path to output zarr file.
-    relative_path, optional
+    relative_path
         Use relative path for link. Default is True.
-    files_to_keep, optional
+    files_to_keep
         List of files to keep and not overwrite. Default is None.
-    slot_map, optional
+    slot_map
         Custom mapping of output slot to input slot, for slots that are not in files_to_keep. Default is None.
-    in_dir_map, optional
+    in_dir_map
         Input directory map for input slots. Default is None.
-    verbose, optional
+    verbose
         Whether to print verbose output. Default is True.
-    subset_mask, optional
+    subset_mask
         Mask to apply to slots. Default is None.
     """
     if in_dir is None:
