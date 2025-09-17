@@ -23,12 +23,13 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-  "anndata>=0.11",
+  "anndata>=0.10",
   "dask<2024.8",
   "dask-ml",
   "h5py>=1.14.2",
   "leidenalg",
-  "scanpy>=1.11",
+  "numpy<2",
+  "scanpy>=1.9.5",
   "scipy<1.15",
   # for debug logging (referenced from the issue template)
   "session-info2",

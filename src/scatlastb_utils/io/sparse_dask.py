@@ -1,11 +1,20 @@
 """Copied and adapted from https://gist.github.com/ivirshup/c29c9fb0b5b21a9c290cf621e4e68b18"""
 
 import anndata as ad
+
+try:
+    from anndata.abc import CSCDataset, CSRDataset  # anndata >=0.11
+except ModuleNotFoundError:
+    from anndata.experimental import CSCDataset, CSRDataset  # anndata <0.11
 import dask.array as da
 import h5py
 import numpy as np
 import zarr
-from anndata.io import read_elem, sparse_dataset
+
+try:
+    from anndata.io import read_elem, sparse_dataset  # anndata >=0.11
+except ModuleNotFoundError:
+    from anndata.experimental import read_elem, sparse_dataset  # anndata <0.11
 from dask import delayed
 from scipy import sparse
 
@@ -66,7 +75,7 @@ def make_dask_chunk(x: "SparseDataset", start: int, end: int) -> da.Array:  # no
 
 def sparse_dataset_as_dask(x, stride: int = 1000):
     """Convert a sparse dataset to a dask array with specified chunk size."""
-    if not isinstance(x, ad.abc.CSRDataset | ad.abc.CSCDataset | da.Array):
+    if not isinstance(x, CSRDataset | CSCDataset | da.Array):
         return x
     n_chunks, rem = divmod(x.shape[0], stride)
 
