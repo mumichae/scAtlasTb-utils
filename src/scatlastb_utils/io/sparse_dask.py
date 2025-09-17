@@ -3,18 +3,18 @@
 import anndata as ad
 
 try:
-    from anndata.abc import CSCDataset, CSRDataset
+    from anndata.abc import CSCDataset, CSRDataset  # anndata >=0.11
 except ModuleNotFoundError:
-    from anndata.experimental import CSCDataset, CSRDataset  # type: ignore
+    from anndata.experimental import CSCDataset, CSRDataset  # anndata <0.11
 import dask.array as da
 import h5py
 import numpy as np
 import zarr
 
 try:
-    from anndata.experimental import read_elem, sparse_dataset  # anndata >=0.10
+    from anndata.io import read_elem, sparse_dataset  # anndata >=0.11
 except ModuleNotFoundError:
-    from anndata.io import read_elem, sparse_dataset  # anndata <0.10
+    from anndata.experimental import read_elem, sparse_dataset  # anndata <0.11
 from dask import delayed
 from scipy import sparse
 

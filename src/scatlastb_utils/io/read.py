@@ -10,9 +10,9 @@ import h5py
 import numpy as np
 
 try:
-    from anndata.experimental import read_elem, sparse_dataset  # anndata >=0.10
+    from anndata.io import read_elem, sparse_dataset  # anndata >=0.11
 except ModuleNotFoundError:
-    from anndata.io import read_elem, sparse_dataset  # anndata <0.10
+    from anndata.experimental import read_elem, sparse_dataset  # anndata <0.11
 from scipy.sparse import csr_matrix
 from tqdm import tqdm
 
