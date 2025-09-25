@@ -16,6 +16,7 @@ import logging
 ## Config variables ## ---------------------------------------------------------
 LOGGER_FORMAT = "[%(asctime)s] %(levelname)-8s %(name)s [%(filename)s:%(funcName)s:%(lineno)d] %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+_HANDLER_NAME = "setup_stream_handler"
 
 LEVEL_COLORS = {
     logging.DEBUG:    "\033[1;34m",  # blue bold
@@ -62,12 +63,17 @@ def _hide_base_path(repo_root: Path | None, ignore: list[str] | None = None) -> 
     if not cwd.strip(): cwd = str(Path(*Path.cwd().parts[-2:]))
     return cwd
 
-def _is_nested(logger: logging.Logger) -> bool:
-    handlers = []
+def _is_nested(logger: logging.Logger, stream=sys.stdout) -> bool:
+    """Return True if a StreamHandler created by setup_logger() is already attached."""
     for h in logger.handlers:
-        temp = isinstance(h, logging.StreamHandler)
-        handlers.append(temp and getattr(h, "_from_setup", False))
-    return any(handlers)
+        # Check both the handler name and that it's a StreamHandler
+        if isinstance(h, logging.StreamHandler) and h.get_name() == _HANDLER_NAME:
+            # ensure we're looking at the same stream
+            if getattr(h, "stream", None) is stream:
+                return True
+            # If you don't care about stream identity, just `return True` here.
+            return True
+    return False
 
 class _ColorFormatter(logging.Formatter):
     def __init__(self, fmt: str, datefmt: str, use_color: bool) -> None:
@@ -84,17 +90,19 @@ class _ColorFormatter(logging.Formatter):
 def _stream_supports_color(stream: object) -> bool:
     """Respect NO_COLOR; require TTY"""
     if os.environ.get("NO_COLOR"): return False
-    return hasattr(stream, "isatty") and stream.isatty()
+    if hasattr(stream, "isatty"): return stream.isatty()
+    return False
 
 def setup_logger(level: int = logging.INFO, stream = sys.stdout) -> logging.Logger:
     logger_name = _project_name(_repo_root())
     # Root/logger setup without global side effects
     logger = logging.getLogger(logger_name)
     logger.setLevel(level)
+    logger.propagate = False
     # Avoid duplicate handlers if setup_logger() is called multiple times
-    if not _is_nested(logger):
+    if not _is_nested(logger, stream=stream):
         handler = logging.StreamHandler(stream)
-        handler._from_setup = True  # sentinel
+        handler.set_name(_HANDLER_NAME)  # marker
         handler.setLevel(level)
         handler.setFormatter(
             _ColorFormatter(
