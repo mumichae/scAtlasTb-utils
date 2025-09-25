@@ -110,9 +110,7 @@ def setup_logger(level: int = logging.INFO, stream = sys.stdout) -> logging.Logg
 logger = setup_logger(level=logging.INFO)
 
 ## logger and shorthands ## ----------------------------------------------------
-logger.setLevel(logging.INFO)
-
-# Define functions for different logging levels
+logger = setup_logger(level=logging.INFO)
 info = logger.info
 warning = logger.warning
 debug = logger.debug
