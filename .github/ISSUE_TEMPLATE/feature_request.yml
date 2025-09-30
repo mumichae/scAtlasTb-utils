@@ -1,5 +1,5 @@
 name: Feature request
-description: Propose a new feature for scAtlasTb_utils
+description: Propose a new feature for scAtlasTb-utils
 labels: enhancement
 body:
   - type: textarea
