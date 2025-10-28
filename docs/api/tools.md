@@ -9,5 +9,5 @@
 .. autosummary::
     :toctree: ../generated
 
-    basic_tool
+    majority_reference
 ```
