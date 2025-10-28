@@ -7,13 +7,12 @@ from anndata import AnnData
 def majority_reference(
     adata: AnnData, reference_key: str, cluster_key: str, crosstab_kwargs: dict[str, Any] | None = None
 ) -> AnnData:
-    """Annotate a cluster by the most common label
-
+    """
     Annotate clusters in an AnnData object by assigning the most common reference label to each cluster.
-    This function determines the majority label (from `reference_key`) for each cluster (from `cluster_key`)
+
+    For each cluster (from `cluster_key`), this function determines the majority label (from `reference_key`)
     using a crosstabulation, and annotates each cell with its cluster's majority label. It also computes
-    per-cluster counts of reference labels and the confidence (fraction of cells matching the majority label)
-    for each cluster.
+    the confidence for each cluster, defined as the fraction of cells in the cluster that match the majority label.
 
     Parameters
     ----------
@@ -28,25 +27,26 @@ def majority_reference(
 
     Returns
     -------
-    The function modifies `adata.obs` in place by adding:
+    AnnData
+        The input AnnData object with two new columns added to `adata.obs`:
         - 'majority_reference': Categorical column with the majority reference label per cluster.
+        - 'majority_reference_confidence': Fraction of cells in each cluster matching the majority label.
 
-    Side Effects
-    ------------
-    - Adds new columns 'majority_reference' and 'majority_reference_confidence' to `adata.obs`, containing the majority label and the confidence (fraction of cells matching the majority label) for each cluster.
     Notes
     -----
     - Cells with missing or NaN reference labels are handled by `pd.crosstab`, depending on the provided `crosstab_kwargs`.
-    - The confidence per cluster is calculated as the fraction of cells in each cluster that match the majority label.
+    - The confidence per cluster is calculated as:
+        confidence = (# cells in cluster with majority label) / (total # cells in cluster)
+    - In case of a tie, pandas `idxmax` returns the first label encountered.
 
     Examples
     --------
-    >>> majority_reference(adata, reference_key="cell_type", cluster_key="louvain")
+    >>> adata = majority_reference(adata, reference_key="cell_type", cluster_key="louvain")
     >>> adata.obs["majority_reference"].value_counts()
+    >>> adata.obs["majority_reference_confidence"].head()
     """
     if crosstab_kwargs is None:
         crosstab_kwargs = {}
-
 
     crosstab = pd.crosstab(adata.obs[reference_key], adata.obs[cluster_key], **crosstab_kwargs)
     map_majority = crosstab.idxmax(axis=0)
