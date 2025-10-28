@@ -34,6 +34,17 @@ pip install scAtlasTb-utils
 pip install git+https://github.com/mumichae/scAtlasTb-utils.git@main
 ```
 
+If you plan to use utilities that integrate with Snakemake, install the optional extra:
+
+```bash
+pip install 'git+https://github.com/mumichae/scAtlasTb-utils.git@main#egg=scatlastb-utils[snakemake]'
+```
+or, after cloning locally:
+
+```bash
+pip install .[snakemake]
+```
+
 ## Release notes
 
 See the [changelog][].
