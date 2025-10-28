@@ -49,7 +49,6 @@ def majority_reference(
     if crosstab_kwargs is None:
         crosstab_kwargs = {}
 
-    adata.obs[reference_key] = adata.obs[reference_key].astype(str).replace("nan", float("nan"))
 
     crosstab = pd.crosstab(adata.obs[reference_key], adata.obs[cluster_key], **crosstab_kwargs)
     map_majority = crosstab.idxmax(axis=0)
