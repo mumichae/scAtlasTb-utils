@@ -354,7 +354,7 @@ class WildcardParameters:
                 from snakemake.utils import Paramspace
             except ImportError as e:
                 raise ImportError(
-                    "snakemake is required for get_paramspace(); install via 'pip install scatlastb-utils[snakemake]'."
+                    "snakemake is required for get_paramspace(); install via 'pip install scatlastb_utils[snakemake]'."
                 ) from e
 
             paramspace = Paramspace(self.wildcards_df[wildcard_names], **kwargs)

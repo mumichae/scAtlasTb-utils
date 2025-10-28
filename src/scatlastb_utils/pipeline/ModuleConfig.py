@@ -245,7 +245,7 @@ class ModuleConfig:
                 from snakemake.io import expand
             except ImportError as e:
                 raise ImportError(
-                    "snakemake is required to expand output files; install via 'pip install scatlastb-utils[snakemake]'."
+                    "snakemake is required to expand output files; install via 'pip install scatlastb_utils[snakemake]'."
                 ) from e
 
             targets = expand(pattern, zip, **wildcards, allow_missing=allow_missing)
