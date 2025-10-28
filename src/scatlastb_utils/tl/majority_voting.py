@@ -33,9 +33,7 @@ def majority_reference(
 
     Side Effects
     ------------
-    - Adds a new column 'majority_reference' to `adata.obs` with the majority label for each cluster.
-    - Computes per-cluster counts and confidence values (not returned, but can be used for further analysis).
-
+    - Adds new columns 'majority_reference' and 'majority_reference_confidence' to `adata.obs`, containing the majority label and the confidence (fraction of cells matching the majority label) for each cluster.
     Notes
     -----
     - Cells with missing or NaN reference labels are handled by `pd.crosstab`, depending on the provided `crosstab_kwargs`.
