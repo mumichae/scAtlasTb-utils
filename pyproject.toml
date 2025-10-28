@@ -33,7 +33,6 @@ dependencies = [
   "scipy<1.15",
   # for debug logging (referenced from the issue template)
   "session-info2",
-  "snakemake<7.32",
   "sparse",
   "zarr<3",
 ]
@@ -55,6 +54,9 @@ optional-dependencies.doc = [
   "sphinx-tabs",
   "sphinxcontrib-bibtex>=1",
   "sphinxext-opengraph",
+]
+optional-dependencies.snakemake = [
+  "snakemake<7.32",
 ]
 optional-dependencies.test = [
   "coverage",
