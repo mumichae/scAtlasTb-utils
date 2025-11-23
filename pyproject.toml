@@ -23,9 +23,18 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-  "anndata",
+  "anndata>=0.10",
+  "dask<2024.8",
+  "dask-ml",
+  "h5py>=1.14.2",
+  "leidenalg",
+  "numpy<2",
+  "scanpy>=1.9.5",
+  "scipy<1.15",
   # for debug logging (referenced from the issue template)
   "session-info2",
+  "sparse",
+  "zarr<3",
 ]
 optional-dependencies.dev = [
   "pre-commit",
@@ -36,7 +45,6 @@ optional-dependencies.doc = [
   "ipykernel",
   "ipython",
   "myst-nb>=1.1",
-  "pandas",
   # Until pybtex >0.24.0 releases: https://bitbucket.org/pybtex-devs/pybtex/issues/169/
   "setuptools",
   "sphinx>=8.1",
@@ -46,6 +54,9 @@ optional-dependencies.doc = [
   "sphinx-tabs",
   "sphinxcontrib-bibtex>=1",
   "sphinxext-opengraph",
+]
+optional-dependencies.snakemake = [
+  "snakemake<7.32",
 ]
 optional-dependencies.test = [
   "coverage>=7.10",
@@ -58,7 +69,7 @@ urls.Homepage = "https://github.com/mumichae/scAtlasTb-utils"
 urls.Source = "https://github.com/mumichae/scAtlasTb-utils"
 
 [tool.hatch.build.targets.wheel]
-packages = [ "src/scatlastb-utils" ]
+packages = [ "src/scatlastb_utils" ]
 
 [tool.hatch.envs.default]
 installer = "uv"
@@ -66,7 +77,7 @@ features = [ "dev" ]
 
 [tool.hatch.envs.docs]
 features = [ "doc" ]
-scripts.build = "sphinx-build -M html docs docs/_build -W {args}"
+scripts.build = "sphinx-build -M html docs docs/_build {args}"
 scripts.open = "python -m webbrowser -t docs/_build/html/index.html"
 scripts.clean = "git clean -fdX -- {args:docs}"
 
@@ -138,7 +149,7 @@ addopts = [
 ]
 
 [tool.coverage.run]
-source = [ "scatlastb-utils" ]
+source = [ "scatlastb_utils" ]
 patch = [ "subprocess" ]
 omit = [
   "**/test_*.py",

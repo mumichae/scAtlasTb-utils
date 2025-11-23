@@ -11,6 +11,7 @@ from importlib.metadata import metadata
 from pathlib import Path
 
 HERE = Path(__file__).parent
+sys.path.insert(0, str(HERE.parent / "src"))
 sys.path.insert(0, str(HERE / "extensions"))
 
 
@@ -59,6 +60,7 @@ extensions = [
     "sphinx.ext.mathjax",
     "IPython.sphinxext.ipython_console_highlighting",
     "sphinxext.opengraph",
+    "matplotlib.sphinxext.plot_directive",
     *[p.stem for p in (HERE / "extensions").glob("*.py")],
 ]
 
@@ -70,6 +72,10 @@ napoleon_numpy_docstring = True
 napoleon_include_init_with_doc = False
 napoleon_use_rtype = True  # having a separate entry generally helps readability
 napoleon_use_param = True
+autodoc_typehints = "both"
+plot_include_source = False
+plot_html_show_source_link = False
+plot_html_show_formats = False
 myst_heading_anchors = 6  # create anchors for h1-h6
 myst_enable_extensions = [
     "amsmath",
@@ -96,6 +102,8 @@ intersphinx_mapping = {
     "anndata": ("https://anndata.readthedocs.io/en/stable/", None),
     "scanpy": ("https://scanpy.readthedocs.io/en/stable/", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
+    "h5py": ("https://docs.h5py.org/en/stable/", None),
+    "zarr": ("https://zarr.readthedocs.io/en/stable/", None),
 }
 
 # List of patterns, relative to source directory, that match files and

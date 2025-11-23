@@ -8,11 +8,6 @@ def test_package_has_version():
 
 
 @pytest.mark.skip(reason="This decorator should be removed when test passes.")
-def test_example():
-    assert 1 == 0  # This test is designed to fail.
-
-
-@pytest.mark.skip(reason="This decorator should be removed when test passes.")
 @pytest.mark.parametrize(
     "transform,layer_key,max_items,expected_len,expected_substring",
     [
