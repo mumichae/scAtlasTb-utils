@@ -357,7 +357,7 @@ def read_partial(
         print_flushed(f'Read slot "{from_slot}", store as "{to_slot}"...', verbose=verbose)
         force_slot_sparse = any(from_slot.startswith((x, f"/{x}")) for x in force_sparse_slots)
 
-        if from_slot in ["layers", "raw", "obsm", "obsp", "uns"]:
+        if from_slot in ["layers", "raw", "obsm", "varm", "obsp", "varp", "uns"]:
             keys = group[from_slot].keys()
 
             if isinstance(select_keys, str):
