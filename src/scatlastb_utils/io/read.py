@@ -239,12 +239,12 @@ def read_anndata(
         obsp: 'connectivities', 'distances'
 
     """
-    # assert Path(file).exists(), f'File not found: {file}'
     if exclude_slots is None:
         exclude_slots = []
     elif exclude_slots == "all":
         exclude_slots = ["X", "layers", "raw"]
 
+    assert Path(file).exists(), f"File not found: {file}"
     store, file_type = get_store(file, return_file_type=True)
     # set default kwargs
     kwargs = {x: x for x in store} if not kwargs else kwargs
