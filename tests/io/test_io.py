@@ -110,6 +110,3 @@ def test_write_linked_anndata(adata, files_to_keep):
 
         # print output
         os.system(f"ls -lah {out_path}")
-
-
-# TODO: test subset masks
