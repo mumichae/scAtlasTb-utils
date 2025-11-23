@@ -243,12 +243,12 @@ def read_anndata(
         obsp: 'connectivities', 'distances'
 
     """
-    # assert Path(file).exists(), f'File not found: {file}'
     if exclude_slots is None:
         exclude_slots = []
     elif exclude_slots == "all":
         exclude_slots = ["X", "layers", "raw"]
 
+    assert Path(file).exists(), f"File not found: {file}"
     store, file_type = get_store(file, return_file_type=True)
     # set default kwargs
     kwargs = {x: x for x in store} if not kwargs else kwargs
@@ -361,7 +361,7 @@ def read_partial(
         print_flushed(f'Read slot "{from_slot}", store as "{to_slot}"...', verbose=verbose)
         force_slot_sparse = any(from_slot.startswith((x, f"/{x}")) for x in force_sparse_slots)
 
-        if from_slot in ["layers", "raw", "obsm", "obsp", "uns"]:
+        if from_slot in ["layers", "raw", "obsm", "varm", "obsp", "varp", "uns"]:
             keys = group[from_slot].keys()
 
             if isinstance(select_keys, str):
@@ -409,7 +409,15 @@ def read_partial(
     try:
         adata = ad.AnnData(**slots)
     except Exception as e:
-        shapes = {slot: x.shape for slot, x in slots.items() if hasattr(x, "shape")}
+
+        def _shape(value):
+            if hasattr(value, "shape"):
+                return value.shape
+            if isinstance(value, dict):
+                return {k: _shape(v) for k, v in value.items()}
+            return None
+
+        shapes = {k: _shape(v) for k, v in slots.items() if hasattr(v, "shape") or isinstance(v, dict)}
         message = f"Error reading {file}\nshapes: {pformat(shapes)}"
         raise ValueError(message) from e
 

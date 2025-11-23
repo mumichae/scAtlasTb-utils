@@ -5,16 +5,25 @@ import numpy as np
 import pandas as pd
 from dask import array as da
 
-from .config import ALL_SLOTS
-
 
 ## Writing subset masks
-def set_mask_per_slot(slot: str, mask: np.array, out_dir: Path | str, in_slot: str = None, in_dir: Path | str = None):
+def set_mask_per_slot(
+    slot: str,
+    mask: np.ndarray | tuple[np.ndarray | None, np.ndarray | None] | None,
+    out_dir: Path | str,
+    mask_dir: Path | str = None,
+    in_slot: str = None,
+    in_dir: Path | str = None,
+):
     """
     Set the subset mask for a specific slot in the output directory.
 
     :param slot: The name of AnnData slot for which to set the mask (e.g., "X", "obs", "var", etc.)
     :param mask: The mask to apply, should be a boolean array or None
+    :param out_dir: Path of zarr directory
+    :param mask_dir: Top-level directory for storing subset masks
+    :param in_slot: Input slot name for linking
+    :param in_dir: Input directory for linking
     """
 
     def _call_function_per_slot(func, path, *args, **kwargs):
@@ -28,24 +37,32 @@ def set_mask_per_slot(slot: str, mask: np.array, out_dir: Path | str, in_slot: s
         return
 
     out_dir = Path(out_dir)
-    mask_dir = out_dir / "subset_mask"
+    slot_dir = out_dir / slot
+    if not slot_dir.exists():
+        print(f"Slot directory {slot_dir} does not exist, skipping mask for slot {slot}", flush=True)
+        return
+
+    if mask_dir is None:
+        mask_dir = out_dir / "subset_mask"
+
+    # set to the slot-specific mask directory
     mask_dir = init_mask_dir(mask_dir, slot, in_slot, in_dir)
 
     if mask is not None:
-        if slot.startswith("obs"):
+        if slot.startswith(("obs", "raw/obs")):
             mask = mask[0]
-        elif slot.startswith("var"):
+        elif slot.startswith(("var", "raw/var")):
             mask = mask[1]
 
     match slot:
-        case _ if slot == "X" or slot.startswith("layers/"):
+        case _ if slot in ["X", "raw/X"] or slot.startswith(("layers/", "raw/layers/")):
             save_feature_matrix_mask(mask_dir=mask_dir, mask=mask, link_slot=link_slot)
 
-        case "obs" | "var":
+        case "obs" | "var" | "raw/obs" | "raw/var":
             save_slot_mask(mask_dir=mask_dir, mask=mask, link_slot=link_slot)
 
-        case "layers":
-            for path in (out_dir / slot).iterdir():
+        case "layers" | "raw/layers":
+            for path in slot_dir.iterdir():
                 _call_function_per_slot(
                     func=save_feature_matrix_mask,
                     path=path,
@@ -54,8 +71,8 @@ def set_mask_per_slot(slot: str, mask: np.array, out_dir: Path | str, in_slot: s
                     link_slot=link_slot,
                 )
 
-        case "obsp" | "obsm" | "varp" | "varm":
-            for path in (out_dir / slot).iterdir():
+        case _ if slot in {"obsp", "obsm", "varp", "varm", "raw/obsp", "raw/obsm", "raw/varp", "raw/varm"}:
+            for path in slot_dir.iterdir():
                 _call_function_per_slot(
                     save_slot_mask,
                     path=path,
@@ -65,21 +82,24 @@ def set_mask_per_slot(slot: str, mask: np.array, out_dir: Path | str, in_slot: s
                 )
 
         case "raw":
-            if not mask_dir.exists():
-                return
-            for path in mask_dir.iterdir():
+            for path in slot_dir.iterdir():
+                if path.name == "raw":
+                    # skip nested raw directory
+                    continue
                 # recursive call for subdirectories
                 _call_function_per_slot(
                     set_mask_per_slot,
                     path=path,
-                    slot=slot,
+                    slot=f"{slot}/{path.name}",
+                    out_dir=out_dir,
                     mask=mask,
-                    out_dir=out_dir / slot,
-                    in_slot=in_slot,
+                    mask_dir=mask_dir.parent,
+                    in_slot=f"{in_slot}/{path.name}" if in_slot else None,
+                    in_dir=in_dir,
                 )
 
         case _:
-            print(f"Unknown slot: {slot}", flush=True)
+            print(f"Unknown slot, cannot subset: {slot}", flush=True)
 
 
 def remove_path(path, remove_file=False):
@@ -106,12 +126,18 @@ def init_mask_dir(mask_dir: Path | str, slot: str, in_slot: str, in_dir: Path | 
 
     mask_dir_slot = mask_dir / slot
 
-    if in_slot is not None:
-        remove_path(mask_dir_slot)
+    # If this slot should link (copy) an existing subset mask from another slot
+    if in_slot and in_dir:
+        # Resolve source directory of the already created subset masks for the input slot
         in_dir = (Path(in_dir) / "subset_mask" / in_slot).resolve()
         if in_dir.exists():
-            # Copy the folder from the original location
+            # Remove existing path (dir, symlink, file) so we can create a fresh copy
+            remove_path(mask_dir_slot)
+            # Copy the entire mask directory from source to current slot-specific mask dir
             shutil.copytree(in_dir, mask_dir_slot)
+
+    if not mask_dir_slot.exists():
+        mask_dir_slot.mkdir(parents=True)
 
     return mask_dir_slot
 
@@ -207,40 +233,28 @@ def subset_slot(slot_name, slot, mask_dir, chunks=("auto", -1)):
     if slot is None or not mask_dir.exists():
         return slot
 
+    if slot_name in ("uns", "raw/uns"):
+        return slot
+
     if isinstance(slot, dict):
         slot = {
             key: subset_slot(
                 slot_name=f"{slot_name}/{key}",
                 slot=value,
-                mask_dir=mask_dir / key,
+                mask_dir=mask_dir,
                 chunks=chunks,
             )
             for key, value in slot.items()
         }
         return slot
 
-    elif slot_name == "raw":
-        # dead code
-        mask_dir = mask_dir / "raw"
-        for slot_name in ALL_SLOTS.items():
-            slot.X = _subset_matrix(slot.X, mask_dir)
-            slot.var = _subset_slot(slot_name, slot.var, mask_dir)
-            slot.varm = _subset_slot(slot_name, slot.varm, mask_dir)
-
-    elif slot_name.startswith("raw/"):
-        slot_name = slot_name.split("/", 1)[-1]
-        mask_dir = mask_dir.parent / "raw" / mask_dir.name
-        slot = subset_slot(slot_name=slot_name, slot=slot, mask_dir=mask_dir)
-
-    elif slot_name == "X":
+    elif slot_name in ["X", "raw/X"] or slot_name.startswith(("layers/", "raw/layers/")):
         slot = _subset_matrix(slot, mask_dir / slot_name)
 
-    elif slot_name.startswith("layers/"):
-        slot = _subset_matrix(slot, mask_dir / slot_name)
-
-    elif slot_name != "uns":
+    elif slot_name.startswith(("obs", "var", "raw/obs", "raw/var")):
         slot = _subset_slot(slot_name, slot, mask_dir / slot_name)
 
+    # optimise data after subsetting
     if isinstance(slot, da.Array):
         slot = slot.rechunk(chunks=chunks)
 
@@ -262,7 +276,15 @@ def _subset_matrix(slot, mask_dir):
     obs_mask = np.load(obs_mask_file)
     var_mask = np.load(var_mask_file)
 
-    return slot[obs_mask, :][:, var_mask].copy()
+    try:
+        return slot[obs_mask, :][:, var_mask].copy()
+    except Exception as e:
+        raise RuntimeError(
+            f"Error subsetting matrix slot with masks from {mask_dir}\n"
+            f"slot shape: {slot.shape}\n"
+            f"obs_mask: shape={obs_mask.shape}, sum={obs_mask.sum()}\n"
+            f"var_mask: shape={var_mask.shape}, sum={var_mask.sum()}"
+        ) from e
 
 
 def _subset_slot(slot_name, slot, mask_dir):

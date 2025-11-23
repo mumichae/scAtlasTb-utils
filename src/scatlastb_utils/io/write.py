@@ -42,6 +42,8 @@ def write_zarr(adata: ad.AnnData, file: str | Path, compute: bool = False) -> No
 
     # fix dtype for NaN obs columns
     for col in adata.obs.columns:
+        if adata.n_obs == 0:
+            continue
         if adata.obs[col].isna().any() or adata.obs[col].dtype.name == "object":
             try:
                 adata.obs[col] = pd.to_numeric(adata.obs[col])
@@ -207,9 +209,8 @@ def link_zarr(
 
     for slot in ALL_SLOTS:
         if slot in slots_to_link or any(x.startswith(f"{slot}/") for x in slots_to_link):
-            set_mask_per_slot(slot=slot, mask=subset_mask, out_dir=out_dir)
-        else:
-            set_mask_per_slot(slot=slot, mask=None, out_dir=out_dir)
+            continue
+        set_mask_per_slot(slot=slot, mask=None, out_dir=out_dir)
 
     for out_slot, in_slot in slot_map:
         if (
@@ -237,6 +238,7 @@ def write_zarr_linked(
     in_dir_map: MutableMapping | None = None,
     verbose: bool = True,
     subset_mask: tuple | None = None,
+    compute: bool = False,
 ) -> None:
     """
     Write AnnData object to a linked zarr file.
@@ -261,18 +263,30 @@ def write_zarr_linked(
         Whether to print verbose output. Default is True.
     subset_mask
         Mask to apply to slots. Default is None.
+    compute
+        Whether to compute dask arrays before writing. Default is False.
     """
-    if in_dir is None:
-        in_dirs = []
-    else:
+    if subset_mask is not None:
+        assert adata.shape[0] == subset_mask[0].sum(), (
+            "Number of observations in adata does not match the provided subset mask."
+        )
+        assert adata.shape[1] == subset_mask[1].sum(), (
+            "Number of variables in adata does not match the provided subset mask."
+        )
+
+    if in_dir:
         in_dir = Path(in_dir)
-        if in_dir.suffix != ".zarr" and not in_dir.name.endswith(".zarr/raw"):
+
+        if in_dir.is_dir():
+            in_dirs = [f.name for f in in_dir.iterdir()]
+        else:  # cannot symlink to non-directory (e.g. h5ad)
             print_flushed(
                 f"Warning: `{in_dir=!r}` is not a top-level zarr directory, not linking any files", verbose=True
             )
-            adata.write_zarr(out_dir)
-            return  # exit when in_dir is not a top-level zarr directory
-        in_dirs = [f.name for f in in_dir.iterdir()]
+            write_zarr(adata, out_dir, compute=compute)
+            return  # exit since no linking can be done
+    else:
+        in_dirs = []
 
     if files_to_keep is None:
         files_to_keep = []
@@ -305,7 +319,7 @@ def write_zarr_linked(
             delattr(adata, slot)
 
     # write zarr file
-    write_zarr(adata, out_dir)
+    write_zarr(adata, out_dir, compute=compute)
 
     # link files
     link_zarr(
