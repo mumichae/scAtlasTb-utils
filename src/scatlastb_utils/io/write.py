@@ -239,6 +239,7 @@ def write_zarr_linked(
     in_dir_map: MutableMapping | None = None,
     verbose: bool = True,
     subset_mask: tuple | None = None,
+    compute: bool = False,
 ) -> None:
     """
     Write AnnData object to a linked zarr file.
@@ -263,6 +264,8 @@ def write_zarr_linked(
         Whether to print verbose output. Default is True.
     subset_mask
         Mask to apply to slots. Default is None.
+    compute
+        Whether to compute dask arrays before writing. Default is False.
     """
     if in_dir is None:
         in_dirs = []
@@ -272,7 +275,7 @@ def write_zarr_linked(
             print_flushed(
                 f"Warning: `{in_dir=!r}` is not a top-level zarr directory, not linking any files", verbose=True
             )
-            adata.write_zarr(out_dir)
+            write_zarr(adata, out_dir, compute=compute)
             return  # exit when in_dir is not a top-level zarr directory
         in_dirs = [f.name for f in in_dir.iterdir()]
 
@@ -307,7 +310,7 @@ def write_zarr_linked(
             delattr(adata, slot)
 
     # write zarr file
-    write_zarr(adata, out_dir)
+    write_zarr(adata, out_dir, compute=compute)
 
     # link files
     link_zarr(
