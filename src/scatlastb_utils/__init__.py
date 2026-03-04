@@ -1,7 +1,17 @@
 from importlib.metadata import version
 
-from . import pl, pp, tl
+from . import io, metrics, pipeline, pl, pp, tl
 
-__all__ = ["pl", "pp", "tl"]
+me = metrics
 
-__version__ = version("scAtlasTb_utils")
+__all__ = [
+    "io",
+    "pl",
+    "pp",
+    "tl",
+    "metrics",
+    "me",
+    "pipeline",
+]
+
+__version__ = version("scatlastb_utils")

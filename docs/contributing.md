@@ -120,6 +120,7 @@ However, for the sake of completeness, and since it’s ubiquitously available,
 we describe how you can manage environments manually using `pip`:
 
 ```bash
+cd scAtlasTb-utils
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev,test,doc]"

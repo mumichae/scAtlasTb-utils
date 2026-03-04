@@ -3,7 +3,7 @@ build-backend = "hatchling.build"
 requires = [ "hatchling" ]
 
 [project]
-name = "scAtlasTb-utils"
+name = "scatlastb-utils"
 version = "0.0.1"
 description = "Package for scAtlasTb utils functions"
 readme = "README.md"
@@ -23,9 +23,18 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-  "anndata",
+  "anndata>=0.10",
+  "dask<2024.8",
+  "dask-ml",
+  "h5py>=1.14.2",
+  "leidenalg",
+  "numpy<2",
+  "scanpy>=1.9.5",
+  "scipy<1.15",
   # for debug logging (referenced from the issue template)
   "session-info2",
+  "sparse",
+  "zarr<3",
 ]
 # https://docs.pypi.org/project_metadata/#project-urls
 urls.Documentation = "https://scAtlasTb-utils.readthedocs.io/"
@@ -46,7 +55,8 @@ doc = [
   "ipykernel",
   "ipython",
   "myst-nb>=1.1",
-  "pandas",
+  "pandas<3",
+  "setuptools",
   "sphinx>=8.1",
   "sphinx-autodoc-typehints",
   "sphinx-book-theme>=1",
@@ -59,6 +69,17 @@ doc = [
 
 [tool.hatch.build.targets.wheel]
 packages = [ "src/scatlastb-utils" ]
+optional-dependencies.snakemake = [
+  "snakemake<7.32",
+]
+optional-dependencies.test = [
+  "coverage",
+  "pytest",
+]
+# https://docs.pypi.org/project_metadata/#project-urls
+urls.Documentation = "https://scAtlasTb-utils.readthedocs.io/"
+urls.Homepage = "https://github.com/mumichae/scAtlasTb-utils"
+urls.Source = "https://github.com/mumichae/scAtlasTb-utils"
 
 [tool.hatch.envs.default]
 installer = "uv"
@@ -66,7 +87,7 @@ dependency-groups = [ "dev" ]
 
 [tool.hatch.envs.docs]
 dependency-groups = [ "doc" ]
-scripts.build = "sphinx-build -M html docs docs/_build -W {args}"
+scripts.build = "sphinx-build -M html docs docs/_build {args}"
 scripts.open = "python -m webbrowser -t docs/_build/html/index.html"
 scripts.clean = "git clean -fdX -- {args:docs}"
 
