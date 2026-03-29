@@ -151,9 +151,9 @@ def test_subset_mask_raw_data(adata):
     assert np.array_equal(adata_raw.var.index, adata.var.index[var_mask])
 
 
-@pytest.mark.parametrize("subset_axis", ["obs", "var"], ids=["obs_only", "var_only"])
+@pytest.mark.parametrize("subset_axis", [None, "obs", "var"], ids=["no_subset", "obs_only", "var_only"])
 def test_subset_mask_none_handling(adata, subset_axis):
-    """Test partial-None masks for obs-only and var-only subsetting."""
+    """Test subset_mask=None (no subset), obs-only, and var-only partial-None masks."""
 
     with tempfile.TemporaryDirectory() as temp_dir:
         original_path = Path(temp_dir) / "original.zarr"
@@ -164,7 +164,13 @@ def test_subset_mask_none_handling(adata, subset_axis):
         obs_mask = (np.arange(adata.n_obs) % 2) == 0
         var_mask = (np.arange(adata.n_vars) % 2) == 0
 
-        if subset_axis == "obs":
+        if subset_axis is None:
+            adata_to_write = adata
+            subset_mask = None
+            expected_obs_index = adata.obs.index
+            expected_var_index = adata.var.index
+            expected_shape = adata.shape
+        elif subset_axis == "obs":
             adata_to_write = adata[obs_mask, :]
             subset_mask = (obs_mask, None)
             expected_obs_index = adata.obs.index[obs_mask]
