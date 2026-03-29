@@ -151,8 +151,9 @@ def test_subset_mask_raw_data(adata):
     assert np.array_equal(adata_raw.var.index, adata.var.index[var_mask])
 
 
-def test_subset_mask_none_handling(adata):
-    """Test that None masks are handled correctly"""
+@pytest.mark.parametrize("subset_axis", [None, "obs", "var"], ids=["no_subset", "obs_only", "var_only"])
+def test_subset_mask_none_handling(adata, subset_axis):
+    """Test subset_mask=None (no subset), obs-only, and var-only partial-None masks."""
 
     with tempfile.TemporaryDirectory() as temp_dir:
         original_path = Path(temp_dir) / "original.zarr"
@@ -160,27 +161,36 @@ def test_subset_mask_none_handling(adata):
 
         adata.write_zarr(original_path)
 
-        # Test with None mask (should not subset)
+        obs_mask = (np.arange(adata.n_obs) % 2) == 0
+        var_mask = (np.arange(adata.n_vars) % 2) == 0
+
+        if subset_axis is None:
+            adata_to_write = adata
+            subset_mask = None
+            expected_obs_index = adata.obs.index
+            expected_var_index = adata.var.index
+            expected_shape = adata.shape
+        elif subset_axis == "obs":
+            adata_to_write = adata[obs_mask, :]
+            subset_mask = (obs_mask, None)
+            expected_obs_index = adata.obs.index[obs_mask]
+            expected_var_index = adata.var.index
+            expected_shape = (obs_mask.sum(), adata.n_vars)
+        else:
+            adata_to_write = adata[:, var_mask]
+            subset_mask = (None, var_mask)
+            expected_obs_index = adata.obs.index
+            expected_var_index = adata.var.index[var_mask]
+            expected_shape = (adata.n_obs, var_mask.sum())
+
         atl.io.write_zarr_linked(
-            adata,
+            adata_to_write,
             in_dir=original_path,
             out_dir=subset_path,
-            subset_mask=None,
+            subset_mask=subset_mask,
         )
 
         adata_subset = atl.io.read_anndata(subset_path)
-        assert adata_subset.shape == adata.shape
-
-        # Test with partial None masks
-        obs_mask = np.random.choice([True, False], size=adata.n_obs, p=[0.7, 0.3])
-
-        subset_path2 = Path(temp_dir) / "subset2.zarr"
-        atl.io.write_zarr_linked(
-            adata,
-            in_dir=original_path,
-            out_dir=subset_path2,
-            subset_mask=(obs_mask, None),  # Only subset observations
-        )
-
-        adata_subset2 = atl.io.read_anndata(subset_path2)
-        assert adata_subset2.shape == (obs_mask.sum(), adata.n_vars)
+        assert adata_subset.shape == expected_shape
+        assert np.array_equal(adata_subset.obs.index, expected_obs_index)
+        assert np.array_equal(adata_subset.var.index, expected_var_index)
