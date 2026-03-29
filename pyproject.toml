@@ -30,7 +30,7 @@ dependencies = [
   "leidenalg",
   "numpy<2",
   "scanpy>=1.9.5",
-  "scipy<1.15",
+  "scipy<1.17",
   # for debug logging (referenced from the issue template)
   "session-info2",
   "sparse",
