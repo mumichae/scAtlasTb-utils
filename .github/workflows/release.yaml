@@ -1,6 +1,9 @@
 name: Release
 
 on:
+  push:
+    branches:
+      - main
   release:
     types: [published]
 
@@ -9,8 +12,27 @@ defaults:
   run:
     shell: bash -euo pipefail {0}
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
+  # On merges to main, Release Please opens/updates a Release PR that bumps
+  # the version in pyproject.toml and updates CHANGELOG.md.
+  # When that PR is merged, it creates a GitHub Release and tag.
+  release-please:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  # When a GitHub Release is published (by Release Please), build and upload to PyPI.
   upload-pypi:
+    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -20,10 +42,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          filter: blob:none
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           cache-dependency-glob: pyproject.toml
 
@@ -32,3 +55,4 @@ jobs:
 
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
