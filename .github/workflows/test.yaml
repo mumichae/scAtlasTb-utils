@@ -6,10 +6,7 @@ on:
   pull_request:
     branches: [main]
   schedule:
-  schedule:
-  schedule:
     - cron: "0 5 1,15 * *"
-  workflow_dispatch:
   workflow_dispatch:
 
 concurrency:
