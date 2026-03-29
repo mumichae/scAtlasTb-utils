@@ -234,26 +234,51 @@ This means that local testing via hatch and remote testing on CI tests against t
 
 ## Publishing a release
 
-### Updating the version number
+Releases are fully automated via [Release Please][].
+This project uses [Conventional Commits][] to drive automatic versioning and changelog generation.
 
-Before making a release, you need to update the version number in the `pyproject.toml` file.
-Please adhere to [Semantic Versioning][semver], in brief
+### Commit message conventions
 
-> Given a version number MAJOR.MINOR.PATCH, increment the:
->
-> 1. MAJOR version when you make incompatible API changes,
-> 2. MINOR version when you add functionality in a backwards compatible manner, and
-> 3. PATCH version when you make backwards compatible bug fixes.
->
-> Additional labels for pre-release and build metadata are available as extensions to the MAJOR.MINOR.PATCH format.
+Please format **commit messages** (or at minimum **PR titles**) as:
 
-Once you are done, commit and push your changes and navigate to the "Releases" page of this project on GitHub.
-Specify `vX.X.X` as a tag name and create a release.
-For more information, see [managing GitHub releases][].
-This will automatically create a git tag and trigger a Github workflow that creates a release on [PyPI][].
+```
+<type>(<optional scope>): <short summary>
+```
 
+Common types:
+
+| Type       | Description                                   | Changelog section        |
+| ---------- | --------------------------------------------- | ------------------------ |
+| `feat`     | A new feature                                 | Features                 |
+| `fix`      | A bug fix                                     | Bug Fixes                |
+| `perf`     | A performance improvement                     | Performance Improvements |
+| `docs`     | Documentation only changes                    | Documentation            |
+| `revert`   | Reverts a previous commit                     | Reverts                  |
+| `refactor` | A code change that is neither fix nor feature | *(hidden)*               |
+| `test`     | Adding or updating tests                      | *(hidden)*               |
+| `build`    | Changes to the build system or dependencies   | *(hidden)*               |
+| `ci`       | Changes to CI configuration                   | *(hidden)*               |
+| `chore`    | Other changes that don't modify src or tests  | *(hidden)*               |
+
+**Breaking changes** should include `BREAKING CHANGE:` in the commit body, or use `!` after the type (e.g. `feat!: remove deprecated API`).
+
+### How the release process works
+
+1. Commits to `main` following Conventional Commits are analyzed automatically.
+2. [Release Please][] opens (or updates) a **Release PR** that:
+   - Bumps the version in `pyproject.toml` following [Semantic Versioning][semver].
+   - Updates `CHANGELOG.md` with all changes since the last release.
+3. When the Release PR is merged, Release Please:
+   - Creates a **GitHub Release** with the changelog as release notes.
+   - Creates a **git tag** (`vX.Y.Z`).
+4. The `release.yaml` workflow then automatically publishes the package to [PyPI][].
+
+> **Note:** You do not need to manually edit `CHANGELOG.md` or the version in `pyproject.toml`.
+> Release Please handles all of that automatically.
+
+[release please]: https://github.com/googleapis/release-please
+[conventional commits]: https://www.conventionalcommits.org/
 [semver]: https://semver.org/
-[managing GitHub releases]: https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository
 [pypi]: https://pypi.org/
 
 ## Writing documentation
