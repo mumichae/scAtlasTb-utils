@@ -120,6 +120,7 @@ def _plot_single_color(
     dpi=200,
     figsize=(6, 6),
     outline_thickness=2,
+    warn_on_drop=True,
     **kwargs,
 ):
     """Plot a single color (or list of gene colors) and optionally save to disk."""
@@ -152,8 +153,12 @@ def _plot_single_color(
             color_vec = adata.obs[col]
             if is_categorical_dtype(color_vec):
                 if color_vec.nunique() > 102:
+                    if warn_on_drop:
+                        logging.warning(f"Color '{col}' has more than 102 categories and will be dropped.")
                     palette = "turbo"
                 elif color_vec.nunique() > 20:
+                    if warn_on_drop:
+                        logging.warning(f"Color '{col}' has more than 20 categories and will use a large palette.")
                     palette = sc.pl.palettes.godsnot_102
             elif is_numeric_dtype(color_vec):
                 palette = "coolwarm" if color_vec.min() < 0 else "plasma"
@@ -249,6 +254,7 @@ def embedding(
     n_jobs: int = 1,
     figsize: tuple = (6, 6),
     downsample: float | int | None = None,
+    warn_on_drop: bool = True,
     **kwargs,
 ):
     """
@@ -296,6 +302,8 @@ def embedding(
     downsample
         If float in (0, 1], randomly subsample that fraction of cells before plotting.
         If int > 1, randomly subsample up to that many cells. Default: None (no downsampling).
+    warn_on_drop
+        If True, log warnings when colors are dropped due to invalidity or low category counts.
     **kwargs
         Additional keyword arguments forwarded to ``_plot_single_color`` and
         ultimately to ``sc.pl.embedding`` (e.g. ``legend_fontsize``, ``ncols``).
@@ -336,6 +344,11 @@ def embedding(
     gene_colors.sort()
 
     # Filter obs colors: must exist and have more than one unique value
+    dropped_colors = [c for c in colors if c not in obs_columns or adata.obs[c].nunique() <= 1]
+    if warn_on_drop and dropped_colors:
+        logging.warning(
+            f"The following colors were dropped because they are not in obs or have <=1 unique value: {dropped_colors}"
+        )
     colors = [c for c in colors if c in obs_columns and adata.obs[c].nunique() > 1]
     logging.info(f"Colors from obs after filtering:\n{pformat(colors)}")
 
@@ -348,6 +361,8 @@ def embedding(
             )
             value_counts = column.value_counts()
             rare = value_counts[value_counts <= min_cells_per_category].index
+            if warn_on_drop and len(rare) > 0:
+                logging.warning(f"In color '{col}', the following rare categories were dropped: {list(rare)}")
             adata.obs[col] = column.cat.remove_categories(rare)
 
     if not colors:
