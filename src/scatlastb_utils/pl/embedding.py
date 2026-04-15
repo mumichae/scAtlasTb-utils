@@ -229,21 +229,21 @@ def _plot_color_axis(
     except (ValueError, RuntimeError) as e:
         traceback.print_exc()
         logging.error(f'Failed to plot "{file_name}": {e}')
-        plt.plot([])
+        fig = plt.figure()
     except Exception:
         raise
 
-    out_path = output_dir / f"{file_name}.png" if output_dir is not None else None
-    if out_path is not None:
+    if output_dir is not None:
+        out_path = Path(output_dir) / f"{file_name}.png"
         try:
-            plt.savefig(out_path, bbox_inches="tight")
+            fig.savefig(out_path, bbox_inches="tight")
         except (OSError, ValueError, RuntimeError) as e:
             logging.error(f'Failed to save plot "{file_name}" to {out_path}: {e}')
             traceback.print_exc()
         except Exception:
             raise
     else:
-        plt.show()
+        plt.show(fig)
     plt.close(fig)
 
 
@@ -258,7 +258,7 @@ def embedding(
     min_cells_per_category: float = 0,
     outlier_factor: float = 0,
     gene_chunk_size: int = 10,
-    output_dir: Path | None = None,
+    output_dir: Path | str | None = None,
     title: str = "",
     dpi: int = 200,
     n_jobs: int = 1,
