@@ -41,7 +41,8 @@ def sample(
     obs = adata.obs
     rng = np.random.RandomState(rng)
 
-    if stratify is not None and stratify in obs.columns:
+    if stratify is not None:
+        assert stratify in obs.columns, f'stratify column "{stratify}" not found in adata.obs'
         mask = np.zeros(len(obs), dtype=bool)
 
         if n is not None:
