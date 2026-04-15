@@ -10,7 +10,7 @@ from dask import array as da
 from scipy import sparse as sp
 
 # Re-exported for backwards compatibility — canonical definitions live in utils
-from scatlastb_utils.utils import apply_layers
+from scatlastb_utils.utils import apply_layers, dask_compute
 
 
 def get_use_gpu(config):
