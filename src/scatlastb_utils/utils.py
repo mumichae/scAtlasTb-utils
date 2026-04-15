@@ -147,6 +147,8 @@ def dask_compute(
     **kwargs
         Forwarded to :func:`apply_layers`.
     """
+    if adata.is_view:
+        adata = adata.copy()
 
     def compute_layer(x, persist=False):
         if not isinstance(x, da.Array):
