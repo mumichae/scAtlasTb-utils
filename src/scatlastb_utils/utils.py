@@ -40,7 +40,9 @@ def parse_gene_names(adata: ad.AnnData, gene_list: list) -> list:
     return exact
 
 
-def remove_outliers(adata: ad.AnnData, extrema: str = "max", factor: float = 10, rep: str = "X_umap") -> ad.AnnData:
+def remove_outliers(
+    adata: ad.AnnData, extrema: str = "max", factor: float = 10, rep: str = "X_umap", copy: bool = False
+) -> ad.AnnData:
     """Remove outliers from an ``.obsm`` embedding representation.
 
     Cells whose embedding coordinate deviates more than *factor* times the
@@ -58,6 +60,8 @@ def remove_outliers(adata: ad.AnnData, extrema: str = "max", factor: float = 10,
         ``0`` disables filtering.
     rep
         Key in ``adata.obsm`` for the embedding (default ``"X_umap"``).
+    copy
+        Whether to return a new copy of the data or just a view
 
     Returns
     -------
@@ -72,8 +76,15 @@ def remove_outliers(adata: ad.AnnData, extrema: str = "max", factor: float = 10,
         abs_values = np.abs(coords.min(axis=1))
     else:
         raise ValueError(f"extrema must be 'max' or 'min', got {extrema!r}")
+
     outlier_mask = abs_values < factor * abs_values.mean()
-    return adata[outlier_mask]
+
+    adata = adata[outlier_mask]
+
+    if copy:
+        adata = adata.copy()
+
+    return adata
 
 
 def apply_layers(
