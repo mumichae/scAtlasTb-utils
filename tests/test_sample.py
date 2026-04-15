@@ -14,7 +14,7 @@ def adata_categorical():
 
 
 def test_stratified_frac(adata_categorical):
-    adata_sub = sample(adata_categorical, stratify="celltype", frac=0.2, random_state=42)
+    adata_sub = sample(adata_categorical, stratify="celltype", fraction=0.2, rng=42)
     counts = adata_sub.obs["celltype"].value_counts()
     # Should have at least 1 per category, and roughly 20% of each
     assert all(counts >= 1)
@@ -25,7 +25,7 @@ def test_stratified_frac(adata_categorical):
 
 
 def test_stratified_n(adata_categorical):
-    adata_sub = sample(adata_categorical, stratify="celltype", n=15, random_state=42)
+    adata_sub = sample(adata_categorical, stratify="celltype", n=15, rng=42)
     counts = adata_sub.obs["celltype"].value_counts()
     # Should have at least 1 per category, sum to 15
     assert all(counts >= 1)
@@ -34,12 +34,12 @@ def test_stratified_n(adata_categorical):
 
 
 def test_random_frac(adata_categorical):
-    adata_sub = sample(adata_categorical, frac=0.1, random_state=42)
+    adata_sub = sample(adata_categorical, fraction=0.1, rng=42)
     assert adata_sub.n_obs == 10
 
 
 def test_random_n(adata_categorical):
-    adata_sub = sample(adata_categorical, n=7, random_state=42)
+    adata_sub = sample(adata_categorical, n=7, rng=42)
     assert adata_sub.n_obs == 7
 
 

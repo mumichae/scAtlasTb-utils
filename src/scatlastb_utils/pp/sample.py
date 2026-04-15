@@ -2,15 +2,16 @@
 
 import anndata as ad
 import numpy as np
-import scanpy as sc
 
 
 def sample(
     adata: ad.AnnData,
-    frac: float | None = None,
+    fraction: float | None = None,
     n: int | None = None,
     stratify: str | None = None,
-    random_state: int = 0,
+    rng: int = 0,
+    copy: bool = False,
+    **kwargs,
 ) -> ad.AnnData:
     """
     Subsample AnnData object with optional stratification.
@@ -21,12 +22,16 @@ def sample(
         Annotated data matrix.
     stratify : str, optional
         Column in adata.obs to stratify by (for categorical stratified sampling).
-    frac : float, optional
-        Fraction of cells to sample (0 < frac <= 1).
+    fraction : float, optional
+        Fraction of cells to sample (0 < fraction <= 1).
     n : int, optional
-        Number of cells to sample (overrides frac if both given).
-    random_state : int, default 0
+        Number of cells to sample (overrides fraction if both given).
+    rng : int, default 0
         Random seed for reproducibility.
+    copy : bool, default False
+        Whether to return a new copy of the data, otherwise returns a view
+    kwargs : dict
+        Parameters to pass to scanpy.pp.sample
 
     Returns
     -------
@@ -34,7 +39,7 @@ def sample(
         Subsampled AnnData object.
     """
     obs = adata.obs
-    rng = np.random.RandomState(random_state)
+    rng = np.random.RandomState(rng)
 
     if stratify is not None and stratify in obs.columns:
         mask = np.zeros(len(obs), dtype=bool)
@@ -42,24 +47,32 @@ def sample(
         if n is not None:
             counts = obs[stratify].value_counts()
             n_per_cat_dict = (counts * (n / len(obs))).round().astype(int).clip(lower=1).to_dict()
-        elif frac is not None and 0 < frac < 1:
+        elif fraction is not None and 0 < fraction < 1:
             counts = obs[stratify].value_counts()
-            n_per_cat_dict = (counts * frac).round().astype(int).clip(lower=1).to_dict()
+            n_per_cat_dict = (counts * fraction).round().astype(int).clip(lower=1).to_dict()
         else:
             return adata
 
-        grouped = obs.groupby(stratify, sort=False).indices
+        grouped = obs.groupby(stratify, sort=False, observed=True).indices
         for cat, cat_positions in grouped.items():
             n_cat = min(len(cat_positions), n_per_cat_dict.get(cat, 1))
             chosen = rng.choice(cat_positions, n_cat, replace=False)
             mask[chosen] = True
-
-        return adata[mask]
+        subset = adata[mask]
+        return subset.copy() if copy else subset
 
     else:
-        if n is not None and n < len(obs):
-            return sc.pp.subsample(adata, n_obs=n, random_state=random_state, copy=True)
-        elif frac is not None and 0 < frac < 1:
-            return sc.pp.subsample(adata, fraction=frac, random_state=random_state, copy=True)
-        else:
-            return adata
+        # Manual sampling to preserve view/copy semantics (scanpy.pp.sample returns a copy)
+        total = len(obs)
+        if n is not None and 0 < n < total:
+            chosen = rng.choice(total, size=n, replace=False)
+            subset = adata[chosen]
+            return subset.copy() if copy else subset
+        elif fraction is not None and 0 < fraction < 1:
+            n_frac = int(round(fraction * total))
+            # ensure at least one selected when fraction > 0
+            n_frac = max(1, min(n_frac, total - 1))
+            chosen = rng.choice(total, size=n_frac, replace=False)
+            subset = adata[chosen]
+            return subset.copy() if copy else subset
+        return adata
