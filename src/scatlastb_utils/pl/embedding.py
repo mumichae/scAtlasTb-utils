@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import traceback
+from collections.abc import Iterable
 from pathlib import Path
 from pprint import pformat
 
@@ -18,37 +19,46 @@ from scatlastb_utils.pp.sample import sample
 from scatlastb_utils.utils import dask_compute, parse_gene_names, remove_outliers
 
 
-def _add_group_sizes_to_legend(legend, adata, color, label_formatter=None):
-    """Append group sizes to legend labels for categorical columns."""
-    category_counts_str = {
-        str(category): int(count) for category, count in adata.obs[color].value_counts(dropna=False).items()
-    }
+def _format_legend_labels(legend, adata, color, category_numbers=None, bold_labels=None):
+    """
+    Unified handler for legend styling.
+
+    Appends counts, applies SCTK-style numbering, and bolds specific labels.
+    """
+    if bold_labels is None:
+        bold_labels = []
+    if category_numbers is None:
+        category_numbers = {}
+
+    # Get group sizes
+    counts = adata.obs[color].value_counts(dropna=False)
+    category_counts_str = {str(k): int(v) for k, v in counts.items()}
+
     for text in legend.get_texts():
         label = text.get_text()
+        # category numbers (SCTK-style)
+        if category_numbers and label in category_numbers:
+            display = f"{category_numbers[label]}: {label}"
+        else:
+            display = label
+        # append counts to legend labels
         count = category_counts_str.get(label)
-        if count is not None:
-            prefix = label if label_formatter is None else label_formatter(label)
-            text.set_text(f"{prefix} (n={count})")
+        text.set_text(f"{display} (n={count})" if count is not None else display)
+        # set font weight for bold labels
+        if label in bold_labels:
+            text.set_fontweight("bold")
+        else:
+            text.set_fontweight("normal")
 
 
 def _plot_centroids_on_embedding(
-    ax, adata, color, basis, legend, category_numbers, legend_fontsize=10, outline_thickness=2
+    ax, adata, color, basis, legend, category_numbers, legend_fontsize=10, bold_labels=None
 ):
-    """
-    Plot category numbers at centroid positions on embedding.
-
-    Args:
-        ax: Matplotlib axes object
-        adata: AnnData object
-        color: Column name in adata.obs for grouping
-        basis: Key in adata.obsm for coordinates
-        legend: Matplotlib legend object
-        category_numbers: Dict mapping categories to their numbers
-        legend_fontsize: Font size for category labels
-    """
+    """Plot category numbers at centroid positions on the embedding."""
+    # Only compute centroids for categories actually present in the current subset
     categories = [cat for cat in adata.obs[color].cat.categories if cat in adata.obs[color].unique()]
 
-    # Compute centroids for each category
+    # Compute centroids (median coordinates) for each category
     coords = adata.obsm[basis][:, :2]
     centroids = (
         pd.DataFrame(coords, index=adata.obs[color])
@@ -57,18 +67,21 @@ def _plot_centroids_on_embedding(
         .reindex(categories)
     )
 
-    # Extract colors from legend handles
+    # Extract colors from legend handles to match circles to categories
     color_map = {
         text.get_text(): handle.get_facecolor()[0]
         for handle, text in zip(legend.legend_handles, legend.get_texts(), strict=False)
         if hasattr(handle, "get_facecolor")
     }
 
-    # Plot category numbers at centroids with matching colors
+    if bold_labels is None:
+        bold_labels = []
+
+    # Plot category numbers at centroids
     for cat, row in centroids.iterrows():
         bg_color = color_map.get(cat, "white")
 
-        # Convert color to RGB for luminance calculation
+        # Automatic text contrast: determine if white or black text is more readable
         try:
             r, g, b = mpl.colors.to_rgba(bg_color)[:3]
             luminance = 0.299 * r + 0.587 * g + 0.114 * b
@@ -76,13 +89,14 @@ def _plot_centroids_on_embedding(
         except (ValueError, TypeError):
             text_color = "white"
 
-        label_value = category_numbers[cat]
+        # Determine label for centroid
+        label = category_numbers.get(cat, cat)
         ax.text(
             row.iloc[0],
             row.iloc[1],
-            s=str(label_value),
-            fontsize=legend_fontsize,
-            fontweight="bold",
+            s=str(label),
+            fontsize=legend_fontsize + 2 if cat in bold_labels else legend_fontsize,
+            fontweight="bold" if cat in bold_labels else "normal",
             ha="center",
             va="center",
             color=text_color,
@@ -92,21 +106,10 @@ def _plot_centroids_on_embedding(
                 alpha=0.4,
                 edgecolor="none",
             ),
-        ).set_path_effects(
-            [mpl.patheffects.Stroke(linewidth=1.5, foreground=color_map.get(cat, "white")), mpl.patheffects.Normal()]
-        )
-
-    # Add category numbers and group sizes to legend labels.
-    category_numbers_str = {str(k): v for k, v in category_numbers.items()}
-
-    def formatter(label):
-        mapped = category_numbers_str.get(label)
-        return f"{mapped}: {label}" if isinstance(mapped, int) else label
-
-    _add_group_sizes_to_legend(legend=legend, adata=adata, color=color, label_formatter=formatter)
+        ).set_path_effects([mpl.patheffects.Stroke(linewidth=2, foreground=bg_color), mpl.patheffects.Normal()])
 
 
-def _plot_single_color(
+def _plot_color_axis(
     adata,
     color,
     basis,
@@ -120,6 +123,7 @@ def _plot_single_color(
     dpi=200,
     figsize=(6, 6),
     outline_thickness=2,
+    bold_labels=None,
     warn_on_drop=True,
     **kwargs,
 ):
@@ -131,6 +135,8 @@ def _plot_single_color(
     if file_name is None:
         file_name = str(color)
     colors = color if isinstance(color, list) else [color]
+    if bold_labels is None:
+        bold_labels = []
 
     fig_params = dict(
         frameon=False,
@@ -188,33 +194,34 @@ def _plot_single_color(
         ax = fig.get_axes()[0]
         legend = ax.get_legend()
 
-        if palette == "turbo":
-            if legend:
-                legend.remove()
-                legend = None
-
-        elif legend and plot_centroids:
-            categories = [cat for cat in adata.obs[color].cat.categories if cat in adata.obs[color].unique()]
-            category_numbers = {
-                cat: idx + 1 if len(str(cat)) > max_label_length else cat for idx, cat in enumerate(categories)
-            }
-            _plot_centroids_on_embedding(
-                ax=ax,
-                adata=adata,
-                color=color,
-                basis=basis,
-                legend=legend,
-                category_numbers=category_numbers,
-                legend_fontsize=kwargs.get("legend_fontsize", 10),
-            )
+        if legend and palette == "turbo":
+            legend.remove()
+            legend = None
 
         elif legend and len(colors) == 1 and is_categorical_dtype(adata.obs[color]):
-            _add_group_sizes_to_legend(legend=legend, adata=adata, color=color)
+            category_numbers = None
 
-        if legend:
-            legend_bbox = legend.get_window_extent()
-            fig_width, fig_height = fig.get_size_inches()
-            fig.set_size_inches((fig_width + legend_bbox.width / fig.dpi, fig_height))
+            if plot_centroids:
+                categories = [cat for cat in adata.obs[color].cat.categories if cat in adata.obs[color].unique()]
+                category_numbers = {
+                    cat: idx + 1 for idx, cat in enumerate(categories) if len(str(cat)) > max_label_length
+                }
+                _plot_centroids_on_embedding(
+                    ax=ax,
+                    adata=adata,
+                    color=color,
+                    basis=basis,
+                    legend=legend,
+                    category_numbers=category_numbers,
+                    legend_fontsize=kwargs.get("legend_fontsize", 12),
+                    bold_labels=bold_labels,
+                )
+
+            _format_legend_labels(
+                legend=legend, adata=adata, color=color, category_numbers=category_numbers, bold_labels=bold_labels
+            )
+
+        # With constrained_layout, let matplotlib handle legend and axes arrangement
 
         if verbose:
             logging.info(f'Plotting color "{file_name}" successful.')
@@ -237,7 +244,7 @@ def _plot_single_color(
             raise
     else:
         plt.show()
-    plt.close("all")
+    plt.close(fig)
 
 
 def embedding(
@@ -245,7 +252,10 @@ def embedding(
     basis: str = "X_umap",
     color: str | list | None = None,
     plot_centroids: list | None = None,
-    min_cells_per_category: float = 1e-4,
+    bold_labels: list | None = None,
+    category_order: object = None,
+    na_strings: str = ["NaN", "None", "", "nan", "unknown"],
+    min_cells_per_category: float = 0,
     outlier_factor: float = 0,
     gene_chunk_size: int = 10,
     output_dir: Path | None = None,
@@ -255,6 +265,7 @@ def embedding(
     figsize: tuple = (6, 6),
     downsample: float | int | None = None,
     warn_on_drop: bool = True,
+    inplace: bool = False,
     **kwargs,
 ):
     """
@@ -280,6 +291,12 @@ def embedding(
     plot_centroids
         Subset of ``color`` values for which centroid labels are drawn on the
         embedding (sctk-style numbered circles).
+    bold_labels
+        List of category names to appear in bold in the legend.
+    category_order
+        Any iterable of strings for global order, or dict mapping {col_name: iterable of order}.
+    na_strings
+        For categorical or str columns, which strings to convert to NaN
     min_cells_per_category
         Minimum number of cells required per category.  Values in ``[0, 1)``
         are interpreted as a fraction of the total cell count.
@@ -304,33 +321,16 @@ def embedding(
         If int > 1, randomly subsample up to that many cells. Default: None (no downsampling).
     warn_on_drop
         If True, log warnings when colors are dropped due to invalidity or low category counts.
+    inplace
+        If True, remove slots from adata inplace. This can be useful for scripts where the
+        adata is not used afterwards, and memory footprint should be minimised to only what
+        is essential for plotting.
     **kwargs
-        Additional keyword arguments forwarded to ``_plot_single_color`` and
+        Additional keyword arguments forwarded to ``_plot_color_axis`` and
         ultimately to ``sc.pl.embedding`` (e.g. ``legend_fontsize``, ``ncols``).
     """
-    # Find a categorical color column for stratification
-    stratify_col = None
-    if color is not None:
-        color_list = color if isinstance(color, list) else [color]
-        for col in color_list:
-            if col in adata.obs.columns and is_categorical_dtype(adata.obs[col]):
-                stratify_col = col
-                break
-
-    n_cells = adata.n_obs  # Preserve original number of cells before downsampling
-    if downsample is not None:
-        if isinstance(downsample, float) and 0 < downsample < 1:
-            adata = sample(adata, frac=downsample, stratify=stratify_col)
-        elif isinstance(downsample, int) and downsample > 1 and adata.n_obs > downsample:
-            adata = sample(adata, n=downsample, stratify=stratify_col)
-        # else: ignore if not valid
     plot_centroids = list(plot_centroids) if plot_centroids else []
     obs_columns = list(adata.obs.columns)
-
-    # Resolve min_cells_per_category threshold
-    if min_cells_per_category < 1:
-        min_cells_per_category *= n_cells
-    logging.info(f"Remove categories with fewer than {min_cells_per_category:.1f} cells")
 
     # Parse color list and ensure centroid colors are included
     colors: list = color if isinstance(color, list) else ([color] if color is not None else [])
@@ -352,18 +352,41 @@ def embedding(
     colors = [c for c in colors if c in obs_columns and adata.obs[c].nunique() > 1]
     logging.info(f"Colors from obs after filtering:\n{pformat(colors)}")
 
-    # Clean categorical columns (normalise NaN strings, drop rare categories)
-    for col in colors:
-        column = adata.obs[col]
-        if is_categorical_dtype(column) or is_string_dtype(column):
-            column = (
-                column.astype(object).replace(["NaN", "None", "", "nan", "unknown"], float("nan")).astype("category")
-            )
-            value_counts = column.value_counts()
-            rare = value_counts[value_counts <= min_cells_per_category].index
-            if warn_on_drop and len(rare) > 0:
-                logging.warning(f"In color '{col}', the following rare categories were dropped: {list(rare)}")
-            adata.obs[col] = column.cat.remove_categories(rare)
+    if adata.is_view or not inplace:
+        logging.info("Convert view to copy...")
+        adata = adata.copy()
+
+    # Resolve min_cells_per_category threshold
+    if min_cells_per_category < 1:
+        min_cells_per_category *= adata.n_obs
+
+    # Prepare each obs color column
+    for col in [col for col in colors if is_categorical_dtype(adata.obs[col]) or is_string_dtype(adata.obs[col])]:
+        # set NaNs
+        column = adata.obs[col].astype(object).replace(na_strings, float("nan")).astype("category")
+        # remove rare categories
+        value_counts = column.value_counts()
+        rare = value_counts[value_counts <= min_cells_per_category].index
+        if warn_on_drop and len(rare) > 0:
+            logging.warning(f"In color '{col}', the following rare categories were dropped: {list(rare)}")
+        adata.obs[col] = column.cat.remove_categories(rare)
+
+        # handle category ordering if specified
+        order = None
+        if isinstance(category_order, dict):
+            order = category_order.get(col)
+        elif category_order is not None and not isinstance(category_order, dict):
+            # Accept any non-string iterable
+            if isinstance(category_order, Iterable) and not isinstance(category_order, (str, bytes)):
+                order = list(category_order)
+            else:
+                order = None
+        if order:
+            # Filter order to only include categories present in the data to avoid errors
+            existing_order = [c for c in order if c in adata.obs[col].cat.categories]
+            # Add any categories present in data but missing from order to the end
+            missing = [c for c in adata.obs[col].cat.categories if c not in existing_order]
+            adata.obs[col] = adata.obs[col].cat.reorder_categories(existing_order + missing)
 
     if not colors:
         logging.info("No valid colors, skip...")
@@ -371,28 +394,36 @@ def embedding(
 
     # Remove embedding outliers
     logging.info("Remove outliers...")
-    adata = remove_outliers(adata, "max", factor=outlier_factor, rep=basis)
-    adata = remove_outliers(adata, "min", factor=outlier_factor, rep=basis)
+    adata = remove_outliers(adata, "max", factor=outlier_factor, rep=basis, copy=False)
+    adata = remove_outliers(adata, "min", factor=outlier_factor, rep=basis, copy=False)
+
+    n_cells = adata.n_obs  # Preserve original number of cells before downsampling
+    if downsample is not None:
+        # Find a categorical color column for stratification
+        stratify_col = None
+        for col in colors:
+            if col in adata.obs.columns and is_categorical_dtype(adata.obs[col]):
+                stratify_col = col
+                break
+        if isinstance(downsample, float) and 0 < downsample < 1:
+            adata = sample(adata, fraction=downsample, stratify=stratify_col, copy=False)
+        elif isinstance(downsample, int) and downsample > 1 and adata.n_obs > downsample:
+            adata = sample(adata, n=downsample, stratify=stratify_col, copy=False)
+        # else: ignore if not valid
+
+    if adata.is_view:
+        logging.info("Convert view to copy...")
+        adata = adata.copy()
 
     # Subset to requested genes, or drop X/var if no genes needed
     if gene_colors:
         logging.info(f"Subset to {len(gene_colors)} requested genes...")
-        adata = adata[:, adata.var_names.isin(gene_colors)].copy()
-        logging.info(str(adata))
+        adata = adata[:, adata.var_names.isin(gene_colors)]
         adata = dask_compute(adata, layers="X")
         logging.info(str(adata.var))
     else:
         del adata.X
         del adata.var
-
-    # Subsample very large datasets
-    logging.info("Shuffle cells...")
-    if n_cells > 1e6:
-        adata = adata[adata.obs.sample(frac=0.7).index]
-
-    if adata.is_view:
-        logging.info("Convert view to copy...")
-        adata = adata.copy()
 
     # Compute point size (clamp between default and 200)
     default_size = max(1, 200_000 / adata.n_obs)
@@ -405,12 +436,13 @@ def embedding(
     list(
         tqdm(
             Parallel(return_as="generator", backend="threading", n_jobs=n_jobs)(
-                delayed(_plot_single_color)(
+                delayed(_plot_color_axis)(
                     adata=adata,
                     color=col,
                     basis=basis,
                     n_cells=n_cells,
                     plot_centroids=col in plot_centroids,
+                    bold_labels=bold_labels,
                     title=title,
                     file_name=col,
                     dpi=dpi,
@@ -436,7 +468,7 @@ def embedding(
         list(
             tqdm(
                 Parallel(return_as="generator", backend="threading", n_jobs=n_jobs)(
-                    delayed(_plot_single_color)(
+                    delayed(_plot_color_axis)(
                         adata=adata,
                         color=group_color,
                         basis=basis,
