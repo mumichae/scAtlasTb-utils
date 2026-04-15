@@ -37,7 +37,7 @@ def parse_gene_names(adata: ad.AnnData, gene_list: list) -> list:
     if patterns:
         mask = var_names.str.contains(pat="|".join(re.escape(p) for p in patterns))
         exact += var_names[mask].tolist()
-    return exact
+    return list(dict.fromkeys(exact))
 
 
 def remove_outliers(
