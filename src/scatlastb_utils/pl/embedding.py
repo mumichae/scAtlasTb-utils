@@ -237,7 +237,7 @@ def _plot_color_axis(
                     basis=basis,
                     legend=legend,
                     category_index_map=category_index_map,
-                    legend_fontsize=legend_fontsize + 2,
+                    legend_fontsize=legend_fontsize,
                     bold_labels=bold_labels,
                 )
 
