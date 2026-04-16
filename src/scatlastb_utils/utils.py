@@ -11,6 +11,21 @@ from dask import array as da
 from tqdm.dask import TqdmCallback
 
 
+def _sanitize_default_file_name(value):
+    if isinstance(value, list):
+        name = "_".join(str(entry) for entry in value)
+    else:
+        name = str(value)
+    # Define unwanted characters to replace with '_'
+    unwanted = '/\\[](){}\'"",:;?<>|=+*&^%$#@!~` \t\n\r'
+    trans = str.maketrans(dict.fromkeys(unwanted, "_"))
+    name = name.translate(trans)
+    # Only allow alphanumeric, dash, and underscore
+    name = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in name).strip("._")
+    assert name, "Sanitized file name is empty"
+    return name
+
+
 def parse_gene_names(adata: ad.AnnData, gene_list: list) -> list:
     """Match gene names or regex patterns against ``adata.var_names``.
 

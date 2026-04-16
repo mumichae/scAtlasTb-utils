@@ -16,7 +16,7 @@ from pandas.api.types import is_categorical_dtype, is_numeric_dtype, is_string_d
 from tqdm import tqdm
 
 from scatlastb_utils.pp.sample import sample
-from scatlastb_utils.utils import dask_compute, parse_gene_names, remove_outliers
+from scatlastb_utils.utils import _sanitize_default_file_name, dask_compute, parse_gene_names, remove_outliers
 
 
 def _format_legend_labels(legend, adata, color, category_numbers=None, bold_labels=None):
@@ -133,7 +133,7 @@ def _plot_color_axis(
 
     palette = None
     if file_name is None:
-        file_name = str(color)
+        file_name = _sanitize_default_file_name(color)
     colors = color if isinstance(color, list) else [color]
     if bold_labels is None:
         bold_labels = []
