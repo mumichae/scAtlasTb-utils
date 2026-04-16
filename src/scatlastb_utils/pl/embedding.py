@@ -19,7 +19,7 @@ from scatlastb_utils.pp.sample import sample
 from scatlastb_utils.utils import _sanitize_default_file_name, dask_compute, parse_gene_names, remove_outliers
 
 
-def _format_legend_labels(legend, obs, color, category_index_map=None, bold_labels=None):
+def _format_legend_labels(legend, obs, color, annotate_legend=True, category_index_map=None, bold_labels=None):
     """
     Unified handler for legend styling.
 
@@ -31,8 +31,11 @@ def _format_legend_labels(legend, obs, color, category_index_map=None, bold_labe
         category_index_map = {}
 
     # Get group sizes
-    counts = obs[color].value_counts(dropna=False)
-    category_counts_str = {str(k): int(v) for k, v in counts.items()}
+    if annotate_legend:
+        counts = obs[color].value_counts(dropna=False)
+        category_counts_str = {str(k): int(v) for k, v in counts.items()}
+    else:
+        category_counts_str = {}
 
     for text in legend.get_texts():
         label = text.get_text()
@@ -134,6 +137,7 @@ def _plot_color_axis(
     color,
     basis,
     obs=None,
+    annotate_legend=True,
     plot_centroids=False,
     verbose=True,
     file_name=None,
@@ -241,6 +245,7 @@ def _plot_color_axis(
                 legend=legend,
                 obs=obs,
                 color=color,
+                annotate_legend=annotate_legend,
                 category_index_map=category_index_map,
                 bold_labels=bold_labels,
             )
@@ -287,7 +292,7 @@ def embedding(
     gene_chunk_size: int = 10,
     output_dir: Path | str | None = None,
     title: str = "",
-    annotate_legend: bool = False,
+    annotate_legend: bool = True,
     dpi: int = 200,
     n_jobs: int = 1,
     figsize: tuple = (6, 6),
@@ -470,7 +475,8 @@ def embedding(
                     adata=adata,
                     color=col,
                     basis=basis,
-                    obs=obs if annotate_legend else None,
+                    obs=obs,
+                    annotate_legend=annotate_legend,
                     plot_centroids=col in plot_centroids,
                     bold_labels=bold_labels,
                     title=title,
@@ -502,6 +508,8 @@ def embedding(
                         adata=adata,
                         color=group_color,
                         basis=basis,
+                        obs=obs,
+                        annotate_legend=annotate_legend,
                         verbose=False,
                         title=title,
                         file_name=group_title,
