@@ -1,7 +1,6 @@
 import hashlib
 import types
 import warnings
-from contextlib import nullcontext
 
 import anndata as ad
 import numpy as np
@@ -9,7 +8,9 @@ import pandas as pd
 import sparse
 from dask import array as da
 from scipy import sparse as sp
-from tqdm.dask import TqdmCallback
+
+# Re-exported for backwards compatibility — canonical definitions live in utils
+from scatlastb_utils.utils import apply_layers, dask_compute
 
 
 def get_use_gpu(config):
@@ -18,32 +19,6 @@ def get_use_gpu(config):
     if isinstance(use_gpu, str):
         use_gpu = use_gpu.lower() == "true"
     return use_gpu
-
-
-def remove_outliers(adata, extrema="max", factor=10, rep="X_umap"):
-    """Remove outliers from .obsm representation of an AnnData object.
-
-    This function removes cells from the AnnData object based on the specified extrema
-    (either "max" or "min") and a factor that determines how far from the mean the
-    outliers are. The cells that are removed have values in the specified representation
-    that are less than `factor` times the mean absolute value of the maximum or minimum
-    values across all cells in that representation.
-
-    :param adata: AnnData object
-    :param extrema: "max" or "min", determines which extreme to consider for outlier removal
-    :param factor: Factor to determine the threshold for outlier removal
-    :param rep: The representation in .obsm to use for outlier detection (default is "X_umap")
-    :return: AnnData view with outliers removed
-    """
-    if factor == 0:
-        return adata
-    umap = adata.obsm[rep]
-    if extrema == "max":
-        abs_values = np.abs(umap.max(axis=1))
-    elif extrema == "min":
-        abs_values = np.abs(umap.min(axis=1))
-    outlier_mask = abs_values < factor * abs_values.mean()
-    return adata[outlier_mask]
 
 
 def all_but(_list, is_not):
@@ -208,74 +183,6 @@ def ensure_dense(adata: ad.AnnData, layers: [str, list] = None, **kwargs):
         return matrix
 
     return apply_layers(adata, func=to_dense, layers=layers, **kwargs)
-
-
-def dask_compute(adata: ad.AnnData, layers: [str, list] = None, verbose: bool = True, **kwargs):
-    """Compute Dask arrays in AnnData object.
-
-    :param adata: AnnData object
-    :param layers: List of layers to compute, or 'X', 'raw', or 'all' (default is None, which computes 'X', 'raw', and all layers)
-    :param verbose: If True, print progress messages
-    :param kwargs: Additional arguments passed to the apply_layers function
-    """
-
-    def compute_layer(x, persist=False):
-        if not isinstance(x, da.Array):
-            return x
-
-        if any(dim == 0 for dim in x.shape):
-            return np.empty(x.shape, dtype=x.dtype)
-
-        context = TqdmCallback(desc="Dask compute", miniters=10, mininterval=5) if verbose else nullcontext()
-        with context:
-            if persist:
-                x = x.persist()
-            x = x.compute()
-        return x
-
-    return apply_layers(
-        adata,
-        func=compute_layer,
-        layers=layers,
-        verbose=verbose,
-        **kwargs,
-    )
-
-
-def apply_layers(adata: ad.AnnData, func: callable, layers: [str, list, bool] = None, verbose: bool = False, **kwargs):
-    """Apply a function to specified layers of an AnnData object.
-
-    :param adata: AnnData object
-    :param func: Function to apply to each layer
-    :param layers: List of layers to apply the function to, or 'X', 'raw', or 'all' (default is None, which applies to 'X', 'raw', and all layers)
-    :param verbose: If True, print progress messages
-    :param kwargs: Additional arguments passed to `func`
-    """
-    if layers is None or layers is True:
-        layers = ["X", "raw"] + list(adata.layers.keys())
-    elif isinstance(layers, str):
-        layers = [layers]
-    elif layers is False:
-        return adata
-
-    for layer in layers:
-        if verbose:
-            print(f"Apply function {func.__name__} to {layer}...", flush=True)
-        if layer == "X":
-            adata.X = func(adata.X, **kwargs)
-        elif layer in adata.layers:
-            adata.layers[layer] = func(adata.layers[layer], **kwargs)
-        elif layer in adata.obsm:
-            adata.obsm[layer] = func(adata.obsm[layer], **kwargs)
-        elif layer == "raw":
-            if adata.raw is None:
-                continue
-            adata_raw = adata.raw.to_adata()
-            adata_raw.X = func(adata.raw.X, **kwargs)
-            adata.raw = adata_raw
-        elif verbose:
-            print(f"Layer {layer} not found, skipping...", flush=True)
-    return adata
 
 
 def merge(dfs: list, verbose: bool = True, **kwargs):
