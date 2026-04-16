@@ -80,3 +80,25 @@ def test_embedding_downsample_param(downsample):
         files = os.listdir(tmpdir)
         assert any(f.endswith(".png") for f in files)
         assert adata.n_obs == n_before
+
+
+def test_plot_centroids():
+    adata = make_adata()
+    n_before = adata.n_obs
+    import os
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        embedding(
+            adata,
+            basis="X_umap",
+            color="group",
+            plot_centroids=["group"],
+            output_dir=tmpdir,
+            title="Centroids",
+            dpi=80,
+            figsize=(4, 4),
+        )
+        files = os.listdir(tmpdir)
+        assert any(f.endswith(".png") for f in files)
+        assert adata.n_obs == n_before
