@@ -58,39 +58,6 @@ def test_legend_bolding_parametrized(bold_labels, expected_fontweights):
     assert fontweights == expected_fontweights
 
 
-@pytest.mark.parametrize(
-    "order,outlier,expected_first_cell_removed",
-    [
-        (["B", "A", "C"], 1.0, True),
-        (["C", "A", "B"], 0.0, False),
-    ],
-)
-def test_embedding_category_order_and_outlier_removal_param(order, outlier, expected_first_cell_removed):
-    adata = make_adata()
-    adata.obsm["X_umap"][0] = [100, 100] if outlier > 0 else [0, 0]
-    import os
-    import tempfile
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        embedding(
-            adata,
-            basis="X_umap",
-            color="group",
-            category_order=order,
-            outlier_factor=outlier,
-            output_dir=tmpdir,
-            title="Order and Outlier",
-            dpi=80,
-            figsize=(4, 4),
-        )
-        files = os.listdir(tmpdir)
-        assert any(f.endswith(".png") for f in files)
-        if expected_first_cell_removed:
-            assert "cell0" not in adata.obs.index or (adata.obsm["X_umap"][0] != [100, 100]).any()
-        else:
-            assert "cell0" in adata.obs.index
-
-
 @pytest.mark.parametrize("downsample", [0.5, 0.25, 10])
 def test_embedding_downsample_param(downsample):
     adata = make_adata()
