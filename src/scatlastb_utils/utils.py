@@ -93,13 +93,8 @@ def remove_outliers(
         raise ValueError(f"extrema must be 'max' or 'min', got {extrema!r}")
 
     outlier_mask = abs_values < factor * abs_values.mean()
-
-    adata = adata[outlier_mask]
-
-    if copy:
-        adata = adata.copy()
-
-    return adata
+    sliced = adata[outlier_mask]
+    return sliced.copy() if copy else sliced
 
 
 def apply_layers(

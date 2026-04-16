@@ -352,7 +352,7 @@ def embedding(
     colors = [c for c in colors if c in obs_columns and adata.obs[c].nunique() > 1]
     logging.info(f"Colors from obs after filtering:\n{pformat(colors)}")
 
-    if adata.is_view or not inplace:
+    if not inplace or adata.is_view:
         logging.info("Convert view to copy...")
         adata = adata.copy()
 
