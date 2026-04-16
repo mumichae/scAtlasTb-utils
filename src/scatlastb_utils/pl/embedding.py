@@ -189,7 +189,7 @@ def _plot_color_axis(
             palette=palette,
             **kwargs,
         )
-        fig.suptitle(f"{title}\nn={adata.n_obs}", fontsize=12)
+        fig.suptitle(f"{title}\nn={obs.shape[0]}", fontsize=12)
 
         ax = fig.get_axes()[0]
         legend = ax.get_legend()
