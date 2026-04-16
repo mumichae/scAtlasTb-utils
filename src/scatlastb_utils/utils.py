@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from contextlib import nullcontext
 
 import anndata as ad
@@ -27,11 +26,12 @@ def _sanitize_default_file_name(value):
 
 
 def parse_gene_names(adata: ad.AnnData, gene_list: list) -> list:
-    """Match gene names or regex patterns against ``adata.var_names``.
+    """
+    Match gene names or regex patterns against ``adata.var_names``.
 
     Each entry in *gene_list* is first looked up as an exact match in
-    ``adata.var_names``.  Entries that are not found exactly are treated as
-    regex patterns and matched via ``str.contains`` against all variable names.
+    ``adata.var_names``. Entries that are not found exactly are treated as
+    regex patterns and matched via ``str.contains`` (with regex=True) against all variable names.
 
     Parameters
     ----------
@@ -50,7 +50,7 @@ def parse_gene_names(adata: ad.AnnData, gene_list: list) -> list:
     exact = [g for g in gene_list if g in var_names]
     patterns = [str(g) for g in gene_list if g not in var_names]
     if patterns:
-        mask = var_names.str.contains(pat="|".join(re.escape(p) for p in patterns))
+        mask = var_names.str.contains(pat="|".join(patterns), regex=True)
         exact += var_names[mask].tolist()
     return list(dict.fromkeys(exact))
 
