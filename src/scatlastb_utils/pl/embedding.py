@@ -19,7 +19,7 @@ from scatlastb_utils.pp.sample import sample
 from scatlastb_utils.utils import _sanitize_default_file_name, dask_compute, parse_gene_names, remove_outliers
 
 
-def _format_legend_labels(legend, adata, color, category_numbers=None, bold_labels=None):
+def _format_legend_labels(legend, obs, color, category_index_map=None, bold_labels=None):
     """
     Unified handler for legend styling.
 
@@ -27,18 +27,18 @@ def _format_legend_labels(legend, adata, color, category_numbers=None, bold_labe
     """
     if bold_labels is None:
         bold_labels = []
-    if category_numbers is None:
-        category_numbers = {}
+    if category_index_map is None:
+        category_index_map = {}
 
     # Get group sizes
-    counts = adata.obs[color].value_counts(dropna=False)
+    counts = obs[color].value_counts(dropna=False)
     category_counts_str = {str(k): int(v) for k, v in counts.items()}
 
     for text in legend.get_texts():
         label = text.get_text()
         # category numbers (SCTK-style)
-        if category_numbers and label in category_numbers:
-            display = f"{category_numbers[label]}: {label}"
+        if category_index_map and label in category_index_map:
+            display = f"{category_index_map[label]}: {label}"
         else:
             display = label
         # append counts to legend labels
@@ -52,7 +52,7 @@ def _format_legend_labels(legend, adata, color, category_numbers=None, bold_labe
 
 
 def _plot_centroids_on_embedding(
-    ax, adata, color, basis, legend, category_numbers, legend_fontsize=10, bold_labels=None
+    ax, adata, color, basis, legend, category_index_map, legend_fontsize=10, bold_labels=None
 ):
     """Plot category numbers at centroid positions on the embedding."""
     # Only compute centroids for categories actually present in the current subset
@@ -90,7 +90,7 @@ def _plot_centroids_on_embedding(
             text_color = "white"
 
         # Determine label for centroid
-        label = category_numbers.get(cat, cat)
+        label = category_index_map.get(cat, cat)
         ax.text(
             row.iloc[0],
             row.iloc[1],
@@ -113,7 +113,7 @@ def _plot_color_axis(
     adata,
     color,
     basis,
-    n_cells=None,
+    obs=None,
     plot_centroids=False,
     verbose=True,
     file_name=None,
@@ -128,8 +128,8 @@ def _plot_color_axis(
     **kwargs,
 ):
     """Plot a single color (or list of gene colors) and optionally save to disk."""
-    if n_cells is None:
-        n_cells = adata.n_obs
+    if obs is None:
+        obs = adata.obs.copy()
 
     palette = None
     if file_name is None:
@@ -189,7 +189,7 @@ def _plot_color_axis(
             palette=palette,
             **kwargs,
         )
-        fig.suptitle(f"{title}\nn={n_cells}", fontsize=12)
+        fig.suptitle(f"{title}\nn={adata.n_obs}", fontsize=12)
 
         ax = fig.get_axes()[0]
         legend = ax.get_legend()
@@ -199,11 +199,11 @@ def _plot_color_axis(
             legend = None
 
         elif legend and len(colors) == 1 and is_categorical_dtype(adata.obs[color]):
-            category_numbers = None
+            category_index_map = None
 
             if plot_centroids:
                 categories = [cat for cat in adata.obs[color].cat.categories if cat in adata.obs[color].unique()]
-                category_numbers = {
+                category_index_map = {
                     cat: idx + 1 for idx, cat in enumerate(categories) if len(str(cat)) > max_label_length
                 }
                 _plot_centroids_on_embedding(
@@ -212,13 +212,17 @@ def _plot_color_axis(
                     color=color,
                     basis=basis,
                     legend=legend,
-                    category_numbers=category_numbers,
+                    category_index_map=category_index_map,
                     legend_fontsize=kwargs.get("legend_fontsize", 12),
                     bold_labels=bold_labels,
                 )
 
             _format_legend_labels(
-                legend=legend, adata=adata, color=color, category_numbers=category_numbers, bold_labels=bold_labels
+                legend=legend,
+                obs=obs,
+                color=color,
+                category_index_map=category_index_map,
+                bold_labels=bold_labels,
             )
 
         # With constrained_layout, let matplotlib handle legend and axes arrangement
@@ -352,6 +356,7 @@ def embedding(
     colors = [c for c in colors if c in obs_columns and adata.obs[c].nunique() > 1]
     logging.info(f"Colors from obs after filtering:\n{pformat(colors)}")
 
+    obs = adata.obs[colors].copy()  # full annotation needed for legend
     if not inplace or adata.is_view:
         logging.info("Convert view to copy...")
         adata = adata.copy()
@@ -397,7 +402,6 @@ def embedding(
     adata = remove_outliers(adata, "max", factor=outlier_factor, rep=basis, copy=False)
     adata = remove_outliers(adata, "min", factor=outlier_factor, rep=basis, copy=False)
 
-    n_cells = adata.n_obs  # Preserve original number of cells before downsampling
     if downsample is not None:
         # Find a categorical color column for stratification
         stratify_col = None
@@ -440,7 +444,7 @@ def embedding(
                     adata=adata,
                     color=col,
                     basis=basis,
-                    n_cells=n_cells,
+                    obs=obs,
                     plot_centroids=col in plot_centroids,
                     bold_labels=bold_labels,
                     title=title,
@@ -472,7 +476,7 @@ def embedding(
                         adata=adata,
                         color=group_color,
                         basis=basis,
-                        n_cells=n_cells,
+                        obs=obs,
                         verbose=False,
                         title=title,
                         file_name=group_title,

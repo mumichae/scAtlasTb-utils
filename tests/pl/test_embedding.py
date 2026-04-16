@@ -53,7 +53,7 @@ def test_legend_bolding_parametrized(bold_labels, expected_fontweights):
     ax = fig.get_axes()[0]
     legend = ax.get_legend()
     assert legend is not None, "Legend should be present"
-    _format_legend_labels(legend=legend, adata=adata, color="group", category_numbers=None, bold_labels=bold_labels)
+    _format_legend_labels(legend=legend, obs=adata.obs, color="group", category_index_map=None, bold_labels=bold_labels)
     fontweights = [t.get_fontweight() for t in legend.get_texts()]
     assert fontweights == expected_fontweights
 
