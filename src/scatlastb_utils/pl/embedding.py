@@ -109,6 +109,26 @@ def _plot_centroids_on_embedding(
         ).set_path_effects([mpl.patheffects.Stroke(linewidth=2, foreground=bg_color), mpl.patheffects.Normal()])
 
 
+def _estimate_legend_width(categories, fontsize):
+    if len(categories) == 0:
+        return 0
+
+    # from scanpy hardcoded defaults
+    ncol = 1 if len(categories) <= 14 else 2 if len(categories) <= 30 else 3
+
+    longest_cat = max(categories, key=len)
+    # estimate text width
+    avg_char_width_pts = fontsize * 0.6
+    max_text_width_pts = len(longest_cat) * avg_char_width_pts
+    # add handle (marker) and internal padding (in points)
+    # handlelength (2.0) + handletextpad (0.8) = 2.8
+    column_width_pts = max_text_width_pts + (2.8 * fontsize)
+    total_width_pts = (column_width_pts * ncol) + (2.0 * fontsize * (ncol - 1))
+
+    # Convert points to inches (72 pts = 1 inch)
+    return (total_width_pts / 72) + 0.1
+
+
 def _plot_color_axis(
     adata,
     color,
@@ -151,54 +171,54 @@ def _plot_color_axis(
     if len(colors) > 4:
         fig_params = dict(frameon=False)
     sc.set_figure_params(**fig_params)
-    mpl.rcParams["figure.constrained_layout.use"] = True
 
-    # Select palette according to obs column type and cardinality
-    for col in colors:
-        if col in adata.obs.columns:
-            color_vec = adata.obs[col]
-            if is_categorical_dtype(color_vec):
-                if color_vec.nunique() > 102:
-                    if warn_on_drop:
-                        logging.warning(f"Color '{col}' has more than 102 categories and will be dropped.")
-                    palette = "turbo"
-                elif color_vec.nunique() > 20:
-                    if warn_on_drop:
-                        logging.warning(f"Color '{col}' has more than 20 categories and will use a large palette.")
-                    palette = sc.pl.palettes.godsnot_102
-            elif is_numeric_dtype(color_vec):
-                palette = "coolwarm" if color_vec.min() < 0 else "plasma"
-
-    # Centroid plotting setup (sctk-like numbering)
+    # Select palette according to the first matching obs column's type and cardinality
     color = colors[0] if colors else None
-    plot_centroids = (
-        plot_centroids
-        and len(colors) == 1
-        and color in adata.obs.columns
-        and is_categorical_dtype(adata.obs[color])
-        and adata.obs[color].nunique() <= 102
-    )
+    palette = None
+    categorical_legend = False
+    if len(colors) == 1 and color in adata.obs.columns:
+        color_vec = adata.obs[color]
+
+        if is_numeric_dtype(color_vec):
+            palette = "coolwarm" if color_vec.min() < 0 else "plasma"
+
+        elif is_categorical_dtype(color_vec):
+            categorical_legend = True
+            ncat = color_vec.nunique()
+            if ncat > 102:
+                if warn_on_drop:
+                    logging.warning(
+                        "Color '%s' has more than 102 categories, using 'turbo' palette and no legend", color
+                    )
+                palette = "turbo"
+                categorical_legend = False
+            elif ncat > 20:
+                palette = sc.pl.palettes.godsnot_102
+
+    legend_fontsize = kwargs.get("legend_fontsize", 10)
+    legend_width = 0
+    if categorical_legend:
+        legend_width = _estimate_legend_width(color_vec.cat.categories, legend_fontsize)
+
+    total_width = figsize[0] + legend_width
+    fig = plt.figure(figsize=(total_width, figsize[1]), constrained_layout=False)
+    gs = fig.add_gridspec(1, 2, width_ratios=[figsize[0], legend_width], wspace=0.1)
+    ax = fig.add_subplot(gs[0, 0])
 
     try:
-        fig = sc.pl.embedding(
+        sc.pl.embedding(
             adata,
             basis=basis,
             color=colors,
             show=False,
-            return_fig=True,
+            ax=ax,
             palette=palette,
+            legend_loc="right margin" if categorical_legend else None,
             **kwargs,
         )
-        fig.suptitle(f"{title}\nn={obs.shape[0]}", fontsize=12)
 
-        ax = fig.get_axes()[0]
-        legend = ax.get_legend()
-
-        if legend and palette == "turbo":
-            legend.remove()
-            legend = None
-
-        elif legend and len(colors) == 1 and is_categorical_dtype(adata.obs[color]):
+        if categorical_legend:
+            legend = ax.get_legend()
             category_index_map = None
 
             if plot_centroids:
@@ -213,7 +233,7 @@ def _plot_color_axis(
                     basis=basis,
                     legend=legend,
                     category_index_map=category_index_map,
-                    legend_fontsize=kwargs.get("legend_fontsize", 12),
+                    legend_fontsize=legend_fontsize + 2,
                     bold_labels=bold_labels,
                 )
 
@@ -225,7 +245,10 @@ def _plot_color_axis(
                 bold_labels=bold_labels,
             )
 
-        # With constrained_layout, let matplotlib handle legend and axes arrangement
+        # adjust figure layout to accommodate legend and title
+        plt.subplots_adjust(left=0.1, right=0.95, top=0.85, bottom=0.1)
+        ax.set_box_aspect(figsize[1] / figsize[0])
+        fig.suptitle(f"{title}\nn={obs.shape[0]}", fontsize=12)
 
         if verbose:
             logging.info(f'Plotting color "{file_name}" successful.')
@@ -264,6 +287,7 @@ def embedding(
     gene_chunk_size: int = 10,
     output_dir: Path | str | None = None,
     title: str = "",
+    annotate_legend: bool = False,
     dpi: int = 200,
     n_jobs: int = 1,
     figsize: tuple = (6, 6),
@@ -314,6 +338,8 @@ def embedding(
         (default) to display figures interactively instead of saving.
     title
         Prefix added to the figure suptitle (combined with the cell count).
+    annotate_legend
+        Whether to append category counts to legend labels (e.g. "CD4+ T (n=123)").
     dpi
         Resolution used for both rendering and saving figures.
     n_jobs
@@ -444,7 +470,7 @@ def embedding(
                     adata=adata,
                     color=col,
                     basis=basis,
-                    obs=obs,
+                    obs=obs if annotate_legend else None,
                     plot_centroids=col in plot_centroids,
                     bold_labels=bold_labels,
                     title=title,
@@ -476,7 +502,6 @@ def embedding(
                         adata=adata,
                         color=group_color,
                         basis=basis,
-                        obs=obs,
                         verbose=False,
                         title=title,
                         file_name=group_title,
