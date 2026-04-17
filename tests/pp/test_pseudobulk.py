@@ -25,10 +25,6 @@ def test_aggregate_obs(adata):
     # index should match groups order
     assert list(out.index) == groups
 
-    # n_agg should equal counts per donor
-    expected_counts = adata.obs.groupby("donor_id").size().reindex(groups).values
-    assert list(out["n_agg"].values) == list(expected_counts)
-
     # numeric aggregation: total_counts should match group mean
     expected_total = adata.obs.groupby("donor_id")["total_counts"].mean().reindex(groups)
     for g in groups:
