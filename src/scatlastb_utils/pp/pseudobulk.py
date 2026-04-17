@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 import scanpy as sc
 
+from scatlastb_utils.utils import ensure_sparse
+
 
 def _categorical_mode(x: pd.Series):
     """Robust mode resolver for categorical-like series.
@@ -87,6 +89,7 @@ def pseudobulk(
     sep: str = "--",
     group_cols=None,
     min_cells: int = 0,
+    force_sparse: bool = False,
     **kwargs,
 ) -> ad.AnnData:
     """Pseudobulk an AnnData object and its metadata.
@@ -147,6 +150,8 @@ def pseudobulk(
 
     logging.info(f"Aggregate {value_counts.shape[0]} pseudobulks...")
     pb_adata = sc.get.aggregate(adata, by=group_key, func=agg, **kwargs)
+    if force_sparse:
+        pb_adata = ensure_sparse(pb_adata)
 
     logging.info(f"Aggregate {adata.obs.shape[1]} metadata columns...")
     obs = _aggregate_obs(adata.obs, group_key, group_order=pb_adata.obs_names)
