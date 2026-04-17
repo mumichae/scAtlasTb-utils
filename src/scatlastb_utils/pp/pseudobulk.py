@@ -87,6 +87,7 @@ def pseudobulk(
     sep: str = "--",
     group_cols=None,
     min_cells: int = 0,
+    **kwargs,
 ) -> ad.AnnData:
     """Pseudobulk an AnnData object and its metadata.
 
@@ -104,6 +105,8 @@ def pseudobulk(
         List of obs columns to preserve/aggregate; defaults to all.
     min_cells : int, optional
         Minimum cells per group to keep (>=0).
+    kwargs : dict
+        Additional arguments passed to `scanpy.get.aggregate`.
 
     Returns
     -------
@@ -143,7 +146,7 @@ def pseudobulk(
     adata.obs = adata.obs[group_cols].copy()
 
     logging.info(f"Aggregate {value_counts.shape[0]} pseudobulks...")
-    pb_adata = sc.get.aggregate(adata, by=group_key, func=agg)
+    pb_adata = sc.get.aggregate(adata, by=group_key, func=agg, **kwargs)
 
     logging.info(f"Aggregate {adata.obs.shape[1]} metadata columns...")
     obs = _aggregate_obs(adata.obs, group_key, group_order=pb_adata.obs_names)

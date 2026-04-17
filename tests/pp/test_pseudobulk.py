@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import pytest
 import scanpy as sc
@@ -71,3 +72,12 @@ def test_pseudobulk_with_dask_backed_read(adata):
         assert isinstance(res, AnnData)
         # expected number of pseudobulk samples equals number of unique donors
         assert res.n_obs == len(groups_list)
+
+
+def test_pseudobulk_prefers_layer(adata):
+    """Ensure pseudobulk uses a named layer created for the aggregation if present."""
+    adata.layers["counts"] = adata.X.copy()  # create a layer to be used for aggregation
+    out = pseudobulk(adata, group_key="donor_id", agg="sum", layer="counts")
+
+    expected = sc.get.aggregate(adata, by="donor_id", func="sum", layer="counts").layers["sum"]
+    assert np.allclose(np.asarray(out.X), expected)
