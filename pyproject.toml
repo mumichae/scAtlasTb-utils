@@ -14,26 +14,25 @@ maintainers = [
 authors = [
   { name = "Michaela Mueller" },
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 classifiers = [
   "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-  "anndata>=0.10",
-  "dask<2024.8",
+  "anndata>=0.12",
+  "dask",
   "dask-ml",
   "h5py>=1.14.2",
   "leidenalg",
-  "numpy<2",
-  "scanpy>=1.9.5",
+  "numpy<3",
+  "scanpy>=1.12",
   "scipy<1.17",
   # for debug logging (referenced from the issue template)
   "session-info2",
-  "sparse",
+  "xarray",
   "zarr<3",
 ]
 # https://docs.pypi.org/project_metadata/#project-urls
@@ -94,7 +93,7 @@ scripts.clean = "git clean -fdX -- {args:docs}"
 # Test the lowest and highest supported Python versions with normal deps
 [[tool.hatch.envs.hatch-test.matrix]]
 deps = [ "stable" ]
-python = [ "3.11", "3.14" ]
+python = [ "3.12", "3.14" ]
 
 # Test the newest supported Python version also with pre-release deps
 [[tool.hatch.envs.hatch-test.matrix]]
