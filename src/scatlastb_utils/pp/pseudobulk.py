@@ -138,6 +138,10 @@ def _aggregate_obs(
     df = df.loc[group_order]
     df[group_key] = df.index.astype(str)
 
+    # compute per-group counts (n_agg) and add to aggregated obs
+    counts = obs.groupby(group_key, observed=True).size()
+    df["n_agg"] = counts.reindex(group_order).fillna(0).astype(int)
+
     # Convert metadata to categorical
     for col in df.columns:
         if isinstance(df[col].dtype, pd.CategoricalDtype):
@@ -273,8 +277,6 @@ def pseudobulk(
 
     logging.info(f"Aggregate {len(group_cols)} metadata columns...")
     obs = _aggregate_obs(adata.obs, group_key, group_order=groups, columns=group_cols)
-    obs["n_agg"] = value_counts.reindex(groups).fillna(0).astype(int)
-    obs = obs[group_cols + ["n_agg"]].copy()  # reorder columns
     logging.debug("Aggregated obs:\n%s", obs)
 
     return ad.AnnData(X=pseudobulks, obs=obs, var=adata.var.copy())

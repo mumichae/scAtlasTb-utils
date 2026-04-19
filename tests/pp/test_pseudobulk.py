@@ -14,10 +14,16 @@ def test_aggregate_obs(adata):
     # index should match groups order
     assert list(out.index) == groups
 
-    # numeric aggregation: total_counts should match group mean
-    expected_total = adata.obs.groupby("donor_id")["total_counts"].mean().reindex(groups)
-    for g in groups:
-        assert approx(out.loc[g, "total_counts"]) == expected_total.loc[g]
+    # check obs aggregation: n_agg should match group size, total_counts should match group mean
+    expected_counts = adata.obs.groupby("donor_id").size()
+    expected_total = adata.obs.groupby("donor_id")["total_counts"].mean()
+    for name in groups:
+        assert out.loc[name, "n_agg"] == expected_counts.loc[name], (
+            f"n_agg mismatch for group {name}\n{adata.obs.query('donor_id == @name')}"
+        )
+        assert out.loc[name, "total_counts"] == expected_total.loc[name], (
+            f"total_counts mismatch for group {name}\n{adata.obs.query('donor_id == @name')}"
+        )
 
 
 @pytest.mark.parametrize("adata_fixture", ["adata", "adata_dask"])
