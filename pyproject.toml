@@ -23,13 +23,13 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-  "anndata>=0.12",
+  "anndata>=0.11",
   "dask",
   "dask-ml",
   "h5py>=1.14.2",
   "leidenalg",
   "numpy<3",
-  "scanpy>=1.12",
+  "scanpy>=1.11",
   "scipy<1.17",
   # for debug logging (referenced from the issue template)
   "session-info2",
@@ -94,7 +94,7 @@ scripts.clean = "git clean -fdX -- {args:docs}"
 # Test the lowest and highest supported Python versions with normal deps
 [[tool.hatch.envs.hatch-test.matrix]]
 deps = [ "stable" ]
-python = [ "3.11", "3.13" ]
+python = [ "3.10", "3.13" ]
 
 # Test the newest supported Python version also with pre-release deps
 [[tool.hatch.envs.hatch-test.matrix]]
