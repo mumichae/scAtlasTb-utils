@@ -151,7 +151,7 @@ def _aggregate_obs(
     return df
 
 
-def _get_pseudobulk_matrix_dask_legacy(adata, group_key, agg, mask, force_sparse, dtype=None, **kwargs):
+def _get_pseudobulk_matrix_dask_legacy(adata, group_key, agg, mask, layer, force_sparse, dtype=None, **kwargs):
     def aggregate(x, agg, force_sparse=True, dtype=None):
         if agg == "sum":
             result = x.sum(0)
@@ -165,12 +165,13 @@ def _get_pseudobulk_matrix_dask_legacy(adata, group_key, agg, mask, force_sparse
 
     dtype = dtype or np.float32
 
+    # choose data source (prefer named layer when provided)
+    X = adata.X if layer is None or layer == "X" else adata.layers[layer]
     if mask is None:
-        X = adata.X
         group_series = adata.obs[group_key]
     else:
-        X = adata.X[mask.values]
         group_series = adata.obs.loc[mask, group_key]
+        X = X[mask.values]
 
     value_counts = group_series.value_counts(dropna=True)
     groups = value_counts.index.sort_values()  # sort alphabetically so argsort and chunk_sizes agree
@@ -195,12 +196,14 @@ def _get_pseudobulk_matrix_dask_legacy(adata, group_key, agg, mask, force_sparse
     return pseudobulks, groups
 
 
-def _get_pseudobulk_matrix(adata, group_key, agg, mask, force_sparse, dtype, use_legacy=False, **kwargs):
+def _get_pseudobulk_matrix(adata, group_key, agg, mask, layer, force_sparse, dtype, use_legacy=False, **kwargs):
     use_legacy |= importlib.metadata.version("scanpy") < "1.12"
     if isinstance(adata.X, da.Array) and use_legacy:
-        return _get_pseudobulk_matrix_dask_legacy(adata, group_key, agg, mask, force_sparse, dtype=dtype, **kwargs)
+        return _get_pseudobulk_matrix_dask_legacy(
+            adata, group_key, agg, mask, layer, force_sparse, dtype=dtype, **kwargs
+        )
 
-    pb_adata = sc.get.aggregate(adata, by=group_key, func=agg, mask=mask, axis=0, **kwargs)
+    pb_adata = sc.get.aggregate(adata, by=group_key, func=agg, mask=mask, layer=layer, axis=0, **kwargs)
     if force_sparse:
         pb_adata = ensure_sparse(pb_adata)
     return pb_adata.layers[agg], pb_adata.obs_names
@@ -212,6 +215,7 @@ def pseudobulk(
     agg: str = "sum",
     sep: str = "--",
     group_cols=None,
+    layer: str | None = None,
     min_cells: int = 2,
     force_sparse: bool = True,
     dtype: str | np.dtype = "float32",
@@ -273,7 +277,7 @@ def pseudobulk(
 
     logging.info(f"Aggregate {value_counts.shape[0]} pseudobulks...")
     pseudobulks, groups = _get_pseudobulk_matrix(
-        adata, group_key, agg, mask, force_sparse, dtype, use_legacy=use_legacy, **kwargs
+        adata, group_key, agg, mask, layer, force_sparse, dtype, use_legacy=use_legacy, **kwargs
     )
 
     logging.info(f"Aggregate {len(group_cols)} metadata columns...")
