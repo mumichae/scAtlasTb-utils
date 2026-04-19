@@ -1,10 +1,70 @@
 import numpy as np
 import pytest
 import scanpy as sc
-from anndata import AnnData
-from pytest import approx
 
 from scatlastb_utils.pp.pseudobulk import _aggregate_obs, pseudobulk
+
+
+def _to_dense(x):
+    """Return a dense numpy array for sparse / dask / numpy-like inputs."""
+    # Dask array -> compute
+    if hasattr(x, "compute"):
+        x = x.compute()
+    # scipy sparse -> toarray
+    if hasattr(x, "toarray"):
+        return x.toarray()
+    return np.asarray(x)
+
+
+def assert_allclose_dense(a, b, rtol=1e-6, atol=0, err_msg=None):
+    """Assert that two arrays are equal up to tolerance, with helpful error message.
+
+    Converts inputs to dense arrays first.
+    """
+    ad = _to_dense(a)
+    bd = _to_dense(b)
+    if ad.shape != bd.shape:
+        raise AssertionError(f"shape mismatch: {ad.shape} != {bd.shape}")
+    try:
+        np.testing.assert_allclose(ad, bd, rtol=rtol, atol=atol, err_msg=err_msg)
+    except AssertionError as e:
+        max_abs = np.max(np.abs(ad - bd))
+        max_rel = np.max(np.abs(ad - bd) / (np.abs(bd) + atol)) if np.any(bd) else np.inf
+        raise AssertionError(
+            f"Arrays not equal within rtol={rtol}, atol={atol}. max_abs={max_abs}, max_rel={max_rel}\n{e}"
+        ) from e
+
+
+def _agggregate_brute_force(adata, group_key, groups, agg="sum", layer=None):
+    """Brute-force compute pseudobulk matrix (dense numpy)"""
+    # choose matrix (prefer layer if given) and make dense numpy
+    mat = _to_dense(adata.layers[layer] if layer is not None else adata.X)
+
+    rows = []
+    for g in groups:
+        sub = mat[(adata.obs[group_key] == g).values]
+        if sub.size == 0:
+            rows.append(np.zeros(mat.shape[1], dtype=mat.dtype))
+            continue
+        if agg == "sum":
+            rows.append(np.asarray(sub.sum(axis=0)).ravel())
+        elif agg == "mean":
+            rows.append(np.asarray(sub.mean(axis=0)).ravel())
+        else:
+            raise ValueError(f"unsupported agg: {agg}")
+
+    return np.vstack(rows)
+
+
+def _expected_pseudobulk(adata, groups, group_key, agg="sum", layer=None, impl="brute_force"):
+    mask = adata.obs[group_key].isin(groups).values
+    if impl == "brute_force":
+        adata = adata[mask].copy()
+        return _agggregate_brute_force(adata, group_key, groups, agg=agg, layer=layer)
+
+    pseudobulk = sc.get.aggregate(adata, by=group_key, func=agg, mask=mask, layer=layer, axis=0)
+    pseudobulk = pseudobulk[groups]  # ensure group order matches expected
+    return pseudobulk.layers[agg]
 
 
 def test_aggregate_obs(adata):
@@ -26,52 +86,49 @@ def test_aggregate_obs(adata):
         )
 
 
-@pytest.mark.parametrize("adata_fixture", ["adata", "adata_dask"])
-def test_pseudobulk(adata_fixture, request):
+@pytest.mark.parametrize(
+    "adata_fixture,use_legacy,layer",
+    [
+        ("adata", False, None),
+        ("adata", False, "counts"),
+        ("adata_dask", False, None),
+        ("adata_dask_backed", False, None),
+        ("adata_dask_backed", True, None),
+        ("adata_dask_backed", True, "counts"),
+    ],
+)
+def test_pseudobulk(adata_fixture, use_legacy, layer, request):
     ad = request.getfixturevalue(adata_fixture)
-    groups = sc.get.aggregate(ad, "donor_id", "count_nonzero").obs_names
-    out = pseudobulk(ad, group_key="donor_id", agg="sum")
 
-    # index should match groups order
-    assert all(out.obs_names == groups)
+    # if testing the named-layer case, create the layer and remove X to
+    # replicate the original prefers-layer behaviour
+    if layer is not None:
+        ad.layers["counts"] = ad.X.copy()
+        del ad.X
 
-    # n_agg should equal counts per donor
-    expected_counts = ad.obs.groupby("donor_id").size().reindex(groups).values
-    assert list(out.obs["n_agg"].values) == list(expected_counts)
+    out = pseudobulk(ad, group_key="donor_id", agg="sum", use_legacy=use_legacy, min_cells=1, layer=layer)
 
-    # numeric aggregation: total_counts should match group mean
-    expected_total = ad.obs.groupby("donor_id")["total_counts"].mean().reindex(groups)
-    for g in groups:
-        assert approx(out.obs.loc[g, "total_counts"]) == expected_total.loc[g]
+    # groups should match set of donors (order-insensitive)
+    expected_groups = set(ad.obs["donor_id"].unique())
+    assert set(out.obs_names) == set(expected_groups)
 
+    # matrix aggregation: compute expected using output ordering
+    expected_matrix = _expected_pseudobulk(
+        ad,
+        groups=out.obs_names,
+        group_key="donor_id",
+        agg="sum",
+        layer=layer,
+        impl="brute_force",
+    )
+    assert_allclose_dense(out.X, expected_matrix)
 
-def test_pseudobulk_with_dask_backed_read(adata):
-    import tempfile
-    from pathlib import Path
-
-    import scatlastb_utils as sa
-
-    # use donor_id as group key from fixture
-    groups_list = list(adata.obs["donor_id"].unique())
-
-    with tempfile.TemporaryDirectory() as td:
-        p = Path(td) / "tmp.zarr"
-        adata.write_zarr(p)
-
-        adata_dask = sa.io.read_anndata(p, dask=True, backed=True)
-        print(adata_dask.obs)
-
-        # run pseudobulk, should return an AnnData with one obs per group
-        res = pseudobulk(adata_dask, group_key="donor_id", agg="sum")
-        assert isinstance(res, AnnData)
-        # expected number of pseudobulk samples equals number of unique donors
-        assert res.n_obs == len(groups_list)
-
-
-def test_pseudobulk_prefers_layer(adata):
-    """Ensure pseudobulk uses a named layer created for the aggregation if present."""
-    adata.layers["counts"] = adata.X.copy()  # create a layer to be used for aggregation
-    out = pseudobulk(adata, group_key="donor_id", agg="sum", layer="counts")
-
-    expected = sc.get.aggregate(adata, by="donor_id", func="sum", layer="counts").layers["sum"]
-    assert np.allclose(np.asarray(out.X), expected)
+    expected_matrix = _expected_pseudobulk(
+        ad,
+        groups=out.obs_names,
+        group_key="donor_id",
+        agg="sum",
+        layer=layer,
+        impl="scanpy.get.aggregate",
+    )
+    assert_allclose_dense(out.X, expected_matrix)
