@@ -16,12 +16,23 @@ logging.basicConfig(level=logging.INFO)
 
 
 def _get_group_codes(series: pd.Series, order: Iterable):
-    """Return integer codes for `series` aligned to `order`.
+    """Return integer group codes aligned to `order`.
 
-    Returns a tuple `(codes, n_groups, order_list)` where `codes` is an
-    ndarray of integer group codes (-1 for NA), `n_groups` is the number
-    of groups (len(order_list)), and `order_list` is the list form of
-    `order`.
+    Parameters
+    ----------
+    series : pandas.Series
+        Series of group labels.
+    order : Iterable
+        Desired ordering of groups (categories).
+
+    Returns
+    -------
+    codes : ndarray
+        Integer codes for `series` (same length as `series`), -1 for NA.
+    n_groups : int
+        Number of groups (len of `order`).
+    order_list : list
+        The provided `order` converted to a list.
     """
     order_list = list(order)
     grp = pd.Categorical(series, categories=order_list)
@@ -112,6 +123,29 @@ def _aggregate_obs(
     group_order: Iterable,
     columns: list | None = None,
 ):
+    """Aggregate observation metadata by group.
+
+    Parameters
+    ----------
+    obs : pandas.DataFrame
+        Observation dataframe (typically ``adata.obs``).
+    group_key : str
+        Column name in ``obs`` to group by.
+    group_order : Iterable
+        Ordered list of group labels to use as the result index.
+    columns : list or None
+        Which columns of ``obs`` to aggregate. If ``None``, all columns
+        are used.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Aggregated metadata indexed by ``group_order``. Numeric and
+        boolean columns are averaged, categorical columns use per-group
+        mode, and an ``n_agg`` column with per-group cell counts is
+        added. Categorical dtypes are converted back to categories where
+        possible.
+    """
     if columns is None:
         columns = obs.columns.tolist()
 
@@ -152,6 +186,17 @@ def _aggregate_obs(
 
 
 def _get_pseudobulk_matrix_dask_legacy(adata, group_key, agg, mask, layer, force_sparse, dtype=None, **kwargs):
+    """Aggregate a dask-backed matrix by groups using a legacy path.
+
+    This implementation sorts and rechunks the dask array so that groups
+    are contiguous, then maps a block-wise aggregation function across
+    the grouped chunks.
+
+    Returns a tuple `(pseudobulks, groups)` where `pseudobulks` is a
+    dask array or sparse array (group x features) and `groups` is the
+    ordered list of group labels.
+    """
+
     def aggregate(x, agg, force_sparse=True, dtype=None):
         if agg == "sum":
             result = x.sum(0)
@@ -197,6 +242,19 @@ def _get_pseudobulk_matrix_dask_legacy(adata, group_key, agg, mask, layer, force
 
 
 def _get_pseudobulk_matrix(adata, group_key, agg, mask, layer, force_sparse, dtype, use_legacy=False, **kwargs):
+    """Dispatch to the appropriate pseudobulk matrix implementation.
+
+    Chooses a legacy dask-based implementation when the input is a
+    dask array and `use_legacy` is True (or Scanpy version is older).
+
+    Returns
+    -------
+    matrix : array-like
+        Aggregated matrix (groups x features). May be a dask array or
+        sparse matrix depending on `force_sparse` and backend.
+    groups : Index-like
+        Ordered group labels corresponding to the rows of `matrix`.
+    """
     use_legacy |= importlib.metadata.version("scanpy") < "1.12"
 
     matrix = adata.layers[layer] if layer is not None else adata.X
@@ -224,29 +282,54 @@ def pseudobulk(
     use_legacy: bool = False,
     **kwargs,
 ) -> ad.AnnData:
-    """Pseudobulk an AnnData object and its metadata.
+    """Aggregate an ``AnnData`` object into pseudobulk samples.
 
     Parameters
     ----------
     adata : AnnData
-        AnnData to aggregate (not modified in-place).
-    group_key : str or list of str
-        Column name or list of column names in `adata.obs` to group by.
+        Input annotated data matrix (function works on a copy).
+    group_key : str or sequence of str
+        Column name(s) in ``adata.obs`` to group by. If a sequence is
+        provided the keys are concatenated with ``sep`` to form a single
+        group label column.
     agg : str, optional
-        Aggregation function name passed to `scanpy.get.aggregate` (e.g. 'sum').
+        Aggregation function name forwarded to ``scanpy.get.aggregate``
+        (common values: ``"sum"``, ``"mean"``).
     sep : str, optional
-        Separator used when joining multiple group keys into a single group label.
-    group_cols : list of str, optional
-        List of obs columns to preserve/aggregate; defaults to all.
+        Separator used when joining multiple group keys.
+    group_cols : list-like, optional
+        Which ``adata.obs`` columns to preserve/aggregate. Defaults to
+        all columns.
+    layer : str or None, optional
+        Name of the layer to use for the expression matrix. If ``None``
+        uses ``adata.X``. When provided, both legacy and modern paths
+        prefer the named layer for aggregation.
     min_cells : int, optional
-        Minimum cells per group to keep (>=0).
-    kwargs : dict
-        Additional arguments passed to `scanpy.get.aggregate`.
+        Minimum number of cells required for a group to be kept.
+    force_sparse : bool, optional
+        If True, attempt to return the aggregated matrix in a sparse
+        representation when appropriate.
+    dtype : str or numpy.dtype, optional
+        Data-type to use for aggregation results.
+    use_legacy : bool, optional
+        Force the legacy dask-backed aggregation path when True.
+    **kwargs
+        Forwarded to ``scanpy.get.aggregate``.
 
     Returns
     -------
     AnnData
-        Pseudobulked AnnData object with aggregated expression and metadata.
+        New ``AnnData`` whose ``X`` contains the aggregated matrix
+        (groups x features) and whose ``obs`` contains aggregated
+        metadata (including an ``n_agg`` column with per-group cell
+        counts).
+
+    Notes
+    -----
+    The function filters out groups with fewer than ``min_cells``
+    before aggregation. If multiple ``group_key`` values are provided
+    they are joined using ``sep`` and the combined label is used for
+    grouping.
     """
     adata = adata.copy()
 
