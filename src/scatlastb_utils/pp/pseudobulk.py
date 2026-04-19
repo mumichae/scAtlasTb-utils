@@ -1,3 +1,4 @@
+import importlib
 import logging
 from collections.abc import Iterable, Sequence
 
@@ -195,7 +196,7 @@ def _get_pseudobulk_matrix_dask_legacy(adata, group_key, agg, mask, force_sparse
 
 
 def _get_pseudobulk_matrix(adata, group_key, agg, mask, force_sparse, dtype, use_legacy=False, **kwargs):
-    use_legacy |= sc.__version__ < "1.12"
+    use_legacy |= importlib.metadata.version("scanpy") < "1.12"
     if isinstance(adata.X, da.Array) and use_legacy:
         return _get_pseudobulk_matrix_dask_legacy(adata, group_key, agg, mask, force_sparse, dtype=dtype, **kwargs)
 
