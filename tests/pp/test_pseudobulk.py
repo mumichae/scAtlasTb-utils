@@ -35,16 +35,13 @@ def assert_allclose_dense(a, b, rtol=1e-6, atol=0, err_msg=None):
         ) from e
 
 
-def _agggregate_brute_force(adata, group_key, groups, agg="sum", layer=None):
+def _agggregate_brute_force(adata, group_key, groups, agg="sum"):
     """Brute-force compute pseudobulk matrix (dense numpy)"""
-    # choose matrix (prefer layer if given) and make dense numpy
-    mat = _to_dense(adata.layers[layer] if layer is not None else adata.X)
-
     rows = []
     for g in groups:
-        sub = mat[(adata.obs[group_key] == g).values]
+        sub = adata.X[(adata.obs[group_key] == g).values]
         if sub.size == 0:
-            rows.append(np.zeros(mat.shape[1], dtype=mat.dtype))
+            rows.append(np.zeros(adata.X.shape[1], dtype=adata.X.dtype))
             continue
         if agg == "sum":
             rows.append(np.asarray(sub.sum(axis=0)).ravel())
@@ -57,12 +54,15 @@ def _agggregate_brute_force(adata, group_key, groups, agg="sum", layer=None):
 
 
 def _expected_pseudobulk(adata, groups, group_key, agg="sum", layer=None, impl="brute_force"):
+    # choose matrix (prefer layer if given) and make dense numpy
+    adata.X = _to_dense(adata.layers[layer] if layer is not None else adata.X)
+
     mask = adata.obs[group_key].isin(groups).values
     if impl == "brute_force":
         adata = adata[mask].copy()
-        return _agggregate_brute_force(adata, group_key, groups, agg=agg, layer=layer)
+        return _agggregate_brute_force(adata, group_key, groups, agg=agg)
 
-    pseudobulk = sc.get.aggregate(adata, by=group_key, func=agg, mask=mask, layer=layer, axis=0)
+    pseudobulk = sc.get.aggregate(adata, by=group_key, func=agg, mask=mask, axis=0)
     pseudobulk = pseudobulk[groups]  # ensure group order matches expected
     return pseudobulk.layers[agg]
 
