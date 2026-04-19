@@ -8,36 +8,98 @@ import scanpy as sc
 
 from scatlastb_utils.utils import ensure_sparse
 
+logging.basicConfig(level=logging.INFO)
 
-def _categorical_mode(x: pd.Series):
-    """Robust mode resolver for categorical-like series.
 
-    Handles categorical and non-categorical dtypes and missing values.
+def _get_group_codes(series: pd.Series, order: Iterable):
+    """Return integer codes for `series` aligned to `order`.
+
+    Returns a tuple `(codes, n_groups, order_list)` where `codes` is an
+    ndarray of integer group codes (-1 for NA), `n_groups` is the number
+    of groups (len(order_list)), and `order_list` is the list form of
+    `order`.
     """
-    # Drop NA for mode calculations
-    x_non_na = x.dropna()
-    if x_non_na.empty:
-        return None
+    order_list = list(order)
+    grp = pd.Categorical(series, categories=order_list)
+    codes = grp.codes.astype(np.int64)
+    n_groups = len(order_list)
+    return codes, n_groups, order_list
 
-    n_vals = len(x_non_na)
-    n_unique = x_non_na.nunique()
 
-    # If all values are unique, return the first non-NA value
-    if n_unique == n_vals:
-        return x_non_na.iloc[0]
+def _mode_for_column(ser: pd.Series, group_codes: np.ndarray, n_groups: int):
+    """Compute per-group categorical mode for one categorical Series.
 
-    # If series is categorical, leverage codes for performance
-    if pd.api.types.is_categorical_dtype(x_non_na.dtype):
-        codes = x_non_na.cat.codes.values
-        codes = codes[codes >= 0]
-        if len(codes) == 0:
-            return None
-        counts = np.bincount(codes)
-        mode_code = int(np.argmax(counts))
-        return x_non_na.cat.categories[mode_code]
+    Packs (group, value) pairs into 64-bit integers, counts unique pairs
+    with np.unique, then selects the most frequent value per group.
+    """
+    ser_cat = ser.astype("category")
+    cat_codes = ser_cat.cat.codes.to_numpy(dtype=np.int64)
 
-    # Fallback to value_counts for general types
-    return x_non_na.value_counts().index[0]
+    valid_mask = (group_codes >= 0) & (cat_codes >= 0)
+    if not valid_mask.any():
+        return np.array([None] * n_groups, dtype=object)
+
+    group_codes_valid = group_codes[valid_mask].astype(np.int64)
+    value_codes_valid = cat_codes[valid_mask]
+
+    # Pack (group, value) into a single int64 for counting
+    packed_keys = (group_codes_valid << 32) | value_codes_valid
+    unique_packed, pair_counts = np.unique(packed_keys, return_counts=True)
+
+    # np.unique returns sorted keys, so group IDs are already in order
+    decoded_group_ids = unique_packed >> 32
+    decoded_value_codes = unique_packed & 0xFFFFFFFF
+
+    # Locate boundaries between groups
+    present_group_ids, start_indices = np.unique(decoded_group_ids, return_index=True)
+    end_indices = np.append(start_indices[1:], decoded_group_ids.size)
+
+    # For each present group pick the value code with the highest count
+    mode_value_codes = np.full(n_groups, -1, dtype=np.int64)
+    for pg, start, end in zip(present_group_ids, start_indices, end_indices, strict=True):
+        seg_counts = pair_counts[start:end]
+        mode_value_codes[pg] = decoded_value_codes[start + seg_counts.argmax()]
+
+    # Map integer codes back to category labels
+    categories = ser_cat.cat.categories
+    mode_values = np.where(mode_value_codes >= 0, categories[mode_value_codes], None)
+    return mode_values
+
+
+def _aggregate_numeric_bool(obs: pd.DataFrame, group_key: str, bool_columns: list, num_columns: list) -> pd.DataFrame:
+    """Aggregate boolean and numeric columns by group (mean).
+
+    Returns an empty DataFrame if no columns provided.
+    """
+    if not (bool_columns or num_columns):
+        return pd.DataFrame()
+    g = obs.groupby(group_key, observed=True)
+    cols = bool_columns + num_columns
+    return g[cols].mean()
+
+
+def _aggregate_categorical(obs: pd.DataFrame, group_key: str, group_order: Iterable, cat_columns: list) -> pd.DataFrame:
+    """Aggregate categorical columns by computing per-group mode for each column.
+
+    Uses `_group_codes` and `_mode_for_column` helpers. Returns a DataFrame
+    indexed by `group_order` with one column per categorical input column.
+    """
+    if not cat_columns:
+        return pd.DataFrame()
+
+    logging.info("Aggregating %d categorical columns...", len(cat_columns))
+    group_codes, n_groups, order_list = _get_group_codes(obs[group_key], group_order)
+    df = pd.DataFrame(index=order_list)
+    for i, col in enumerate(cat_columns, 1):
+        logging.debug("Processing categorical column %d/%d: %s", i, len(cat_columns), col)
+        if obs[col].value_counts().max() == 1:
+            logging.debug("Column '%s' is unique per group, skipping mode calculation", col)
+            modes = obs.groupby(group_key)[col].first().reindex(order_list).values
+        else:
+            modes = _mode_for_column(obs[col], group_codes, n_groups)
+        df[col] = pd.Series(modes, index=order_list)
+
+    return df
 
 
 def _aggregate_obs(
@@ -60,27 +122,22 @@ def _aggregate_obs(
         obs[cat_columns] = obs[cat_columns].astype("category")
 
     if bool_columns or num_columns or cat_columns:
-        g = obs.groupby(group_key, observed=True)
-        df = pd.concat(
-            [
-                g[bool_columns + num_columns].mean(),
-                g[cat_columns].agg(_categorical_mode),
-            ],
-            axis=1,
-        )
+        numeric_cols = _aggregate_numeric_bool(obs, group_key, bool_columns, num_columns)
+        cat_cols = _aggregate_categorical(obs, group_key, group_order, cat_columns)
+        df = pd.concat([numeric_cols, cat_cols], axis=1)
     else:
         df = obs.groupby(group_key, observed=True).first()
 
     if bool_columns:
         df[bool_columns] = df[bool_columns] > 0.5  # mode for bool
 
-    logging.info("Set aggregated metadata order...")
+    # Set aggregated metadata order
     df = df.loc[group_order]
     df[group_key] = df.index.astype(str)
 
-    logging.info("Convert metadata to categorical...")
+    # Convert metadata to categorical
     for col in df.columns:
-        if pd.api.types.is_categorical_dtype(df[col].dtype):
+        if isinstance(df[col].dtype, pd.CategoricalDtype):
             df[col] = df[col].astype(str).astype("category")
 
     return df
@@ -123,19 +180,14 @@ def pseudobulk(
     adata = adata.copy()
 
     # Normalize group_key to a single column name
-    if isinstance(group_key, (list, tuple)) or isinstance(group_key, Sequence) and not isinstance(group_key, str):
+    logging.info(f"Processing group key(s) {group_key}...")
+    if isinstance(group_key, (list, tuple, Sequence)) and not isinstance(group_key, str):
         group_keys = list(group_key)
-        for k in group_keys:
-            if k not in adata.obs.columns:
-                raise KeyError(f"group key '{k}' not found in adata.obs")
-        new_key = sep.join(group_keys)
-        if new_key in adata.obs.columns:
-            raise KeyError(f"generated group key '{new_key}' already exists in adata.obs")
-        adata.obs[new_key] = adata.obs[group_keys].astype(str).apply(lambda x: sep.join(x), axis=1)
-        group_key = new_key
-    else:
-        if group_key not in adata.obs.columns:
-            raise KeyError(f"group key '{group_key}' not found in adata.obs")
+        missing = pd.Index(group_keys).difference(adata.obs.columns)
+        if missing.any():
+            raise KeyError(f"group key(s) {missing.tolist()} not found in adata.obs")
+        group_key = sep.join(group_keys)
+        adata.obs[group_key] = adata.obs[group_keys].astype(str).agg(sep.join, axis=1)
 
     # Determine which obs columns to keep, preserving order
     if group_cols is None:

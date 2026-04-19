@@ -1,22 +1,10 @@
 import numpy as np
-import pandas as pd
 import pytest
 import scanpy as sc
 from anndata import AnnData
 from pytest import approx
 
-from scatlastb_utils.pp.pseudobulk import _aggregate_obs, _categorical_mode, pseudobulk
-
-
-@pytest.mark.parametrize(
-    "series,expected",
-    [
-        (pd.Series(["a", "b", "c"]).astype("category"), "a"),
-        (pd.Series(["x", "y", "x", "z"]).astype("category"), "x"),
-    ],
-)
-def test_categorical_mode_param(series, expected):
-    assert _categorical_mode(series) == expected
+from scatlastb_utils.pp.pseudobulk import _aggregate_obs, pseudobulk
 
 
 def test_aggregate_obs(adata):
