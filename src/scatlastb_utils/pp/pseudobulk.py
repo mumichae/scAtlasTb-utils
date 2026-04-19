@@ -44,8 +44,12 @@ def _aggregate_obs(
     obs: pd.DataFrame,
     group_key: str,
     group_order: Iterable,
+    columns: list | None = None,
 ):
-    obs = obs.copy()
+    if columns is None:
+        columns = obs.columns.tolist()
+
+    obs = obs[columns].copy()
     bool_columns = obs.select_dtypes(include=["bool"]).columns.tolist()
     num_columns = obs.select_dtypes(include=["number"]).columns.tolist()
     cat_columns = obs.select_dtypes(exclude=["number", "bool"]).columns.tolist()
@@ -141,21 +145,23 @@ def pseudobulk(
     group_cols = list(dict.fromkeys(group_cols + [group_key]))
 
     # filter groups with too few cells
+    mask = None
     value_counts = adata.obs[group_key].value_counts(dropna=True)
-    value_counts = value_counts[value_counts >= min_cells]
 
-    # subset data (safe copy)
-    adata = adata[adata.obs[group_key].isin(value_counts.index)].copy()
-    adata.obs = adata.obs[group_cols].copy()
+    if min_cells > 0:
+        logging.info(f"Filtering groups with at least {min_cells} cells...")
+        value_counts = value_counts[value_counts >= min_cells]
+        mask = adata.obs[group_key].isin(value_counts.index)
 
     logging.info(f"Aggregate {value_counts.shape[0]} pseudobulks...")
-    pb_adata = sc.get.aggregate(adata, by=group_key, func=agg, **kwargs)
+    pb_adata = sc.get.aggregate(adata, by=group_key, func=agg, mask=mask, axis=0, **kwargs)
     if force_sparse:
         pb_adata = ensure_sparse(pb_adata)
 
-    logging.info(f"Aggregate {adata.obs.shape[1]} metadata columns...")
-    obs = _aggregate_obs(adata.obs, group_key, group_order=pb_adata.obs_names)
+    logging.info(f"Aggregate {len(group_cols)} metadata columns...")
+    obs = _aggregate_obs(adata.obs, group_key, group_order=pb_adata.obs_names, columns=group_cols)
     obs["n_agg"] = pb_adata.obs["n_obs_aggregated"].values
+    obs = obs[group_cols + ["n_agg"]].copy()  # reorder columns
     logging.debug("Aggregated obs:\n%s", obs)
 
     return ad.AnnData(
