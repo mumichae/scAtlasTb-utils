@@ -177,7 +177,7 @@ def _get_pseudobulk_matrix_dask_legacy(adata, group_key, agg, mask, layer, force
     groups = value_counts.index.sort_values()  # sort alphabetically so argsort and chunk_sizes agree
 
     group_col = pd.Categorical(group_series, categories=groups, ordered=True)
-    sorted_idx = np.argsort(group_col.codes, stable=True)
+    sorted_idx = np.argsort(group_col.codes, kind="stable")
     chunk_sizes = tuple(value_counts.reindex(groups).values)
 
     logging.info(f'Sort and rechunk dask array by "{group_key}"...')
@@ -198,7 +198,9 @@ def _get_pseudobulk_matrix_dask_legacy(adata, group_key, agg, mask, layer, force
 
 def _get_pseudobulk_matrix(adata, group_key, agg, mask, layer, force_sparse, dtype, use_legacy=False, **kwargs):
     use_legacy |= importlib.metadata.version("scanpy") < "1.12"
-    if isinstance(adata.X, da.Array) and use_legacy:
+
+    matrix = adata.layers[layer] if layer is not None else adata.X
+    if isinstance(matrix, da.Array) and use_legacy:
         return _get_pseudobulk_matrix_dask_legacy(
             adata, group_key, agg, mask, layer, force_sparse, dtype=dtype, **kwargs
         )
