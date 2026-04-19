@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from dask import array as da
 
-from scatlastb_utils.pipeline.misc import dask_compute
+from scatlastb_utils.utils import dask_compute
 
 from .config import ALL_SLOTS, print_flushed
 from .subset_slots import set_mask_per_slot
