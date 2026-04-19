@@ -5,6 +5,9 @@ import anndata as ad
 import numpy as np
 import pandas as pd
 import scanpy as sc
+from dask import array as da
+from dask import config as dask_config
+from scipy import sparse as sp
 
 from scatlastb_utils.utils import ensure_sparse
 
@@ -143,14 +146,71 @@ def _aggregate_obs(
     return df
 
 
+def _get_pseudobulk_matrix_dask_legacy(adata, group_key, agg, mask, force_sparse, dtype=None, **kwargs):
+    def aggregate(x, agg, force_sparse=True, dtype=None):
+        if agg == "sum":
+            result = x.sum(0)
+        elif agg == "mean":
+            result = x.mean(0)
+        else:
+            raise ValueError(f'invalid aggregation method "{agg}"')
+        if force_sparse:
+            return sp.csr_matrix(result, dtype=dtype)
+        return np.asarray(result, dtype=dtype)
+
+    dtype = dtype or np.float32
+
+    if mask is None:
+        X = adata.X
+        group_series = adata.obs[group_key]
+    else:
+        X = adata.X[mask.values]
+        group_series = adata.obs.loc[mask, group_key]
+
+    value_counts = group_series.value_counts(dropna=True)
+    groups = value_counts.index.sort_values()  # sort alphabetically so argsort and chunk_sizes agree
+
+    group_col = pd.Categorical(group_series, categories=groups, ordered=True)
+    sorted_idx = np.argsort(group_col.codes, stable=True)
+    chunk_sizes = tuple(value_counts.reindex(groups).values)
+
+    logging.info(f'Sort and rechunk dask array by "{group_key}"...')
+    with dask_config.set(**{"array.slicing.split_large_chunks": False}):
+        X = X[sorted_idx].rechunk((chunk_sizes, -1))
+        meta = sp.csr_matrix((0, 0), dtype=dtype) if force_sparse else np.empty((0, 0), dtype=dtype)
+        pseudobulks = X.map_blocks(
+            aggregate,
+            agg,
+            force_sparse=force_sparse,
+            dtype=dtype,
+            chunks=((1,) * len(groups), X.shape[1]),
+            meta=meta,
+        )
+    assert pseudobulks.shape[0] == len(groups)
+    return pseudobulks, groups
+
+
+def _get_pseudobulk_matrix(adata, group_key, agg, mask, force_sparse, dtype, use_legacy=False, **kwargs):
+    use_legacy |= sc.__version__ < "1.12"
+    if isinstance(adata.X, da.Array) and use_legacy:
+        return _get_pseudobulk_matrix_dask_legacy(adata, group_key, agg, mask, force_sparse, dtype=dtype, **kwargs)
+
+    pb_adata = sc.get.aggregate(adata, by=group_key, func=agg, mask=mask, axis=0, **kwargs)
+    if force_sparse:
+        pb_adata = ensure_sparse(pb_adata)
+    return pb_adata.layers[agg], pb_adata.obs_names
+
+
 def pseudobulk(
     adata: ad.AnnData,
     group_key: str | Sequence[str],
     agg: str = "sum",
     sep: str = "--",
     group_cols=None,
-    min_cells: int = 0,
-    force_sparse: bool = False,
+    min_cells: int = 2,
+    force_sparse: bool = True,
+    dtype: str | np.dtype = "float32",
+    use_legacy: bool = False,
     **kwargs,
 ) -> ad.AnnData:
     """Pseudobulk an AnnData object and its metadata.
@@ -204,20 +264,17 @@ def pseudobulk(
         logging.info(f"Filtering groups with at least {min_cells} cells...")
         value_counts = value_counts[value_counts >= min_cells]
         mask = adata.obs[group_key].isin(value_counts.index)
+        logging.info(f"Remove {mask.sum()} cells from groups with fewer than {min_cells} cells")
 
     logging.info(f"Aggregate {value_counts.shape[0]} pseudobulks...")
-    pb_adata = sc.get.aggregate(adata, by=group_key, func=agg, mask=mask, axis=0, **kwargs)
-    if force_sparse:
-        pb_adata = ensure_sparse(pb_adata)
+    pseudobulks, groups = _get_pseudobulk_matrix(
+        adata, group_key, agg, mask, force_sparse, dtype, use_legacy=use_legacy, **kwargs
+    )
 
     logging.info(f"Aggregate {len(group_cols)} metadata columns...")
-    obs = _aggregate_obs(adata.obs, group_key, group_order=pb_adata.obs_names, columns=group_cols)
-    obs["n_agg"] = pb_adata.obs["n_obs_aggregated"].values
+    obs = _aggregate_obs(adata.obs, group_key, group_order=groups, columns=group_cols)
+    obs["n_agg"] = value_counts.reindex(groups).fillna(0).astype(int)
     obs = obs[group_cols + ["n_agg"]].copy()  # reorder columns
     logging.debug("Aggregated obs:\n%s", obs)
 
-    return ad.AnnData(
-        X=pb_adata.layers[agg],
-        obs=obs,
-        var=adata.var.copy(),
-    )
+    return ad.AnnData(X=pseudobulks, obs=obs, var=adata.var.copy())
