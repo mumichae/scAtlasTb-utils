@@ -1,3 +1,4 @@
+import anndata as ad
 import numpy as np
 import pytest
 import scanpy as sc
@@ -132,3 +133,20 @@ def test_pseudobulk(adata_fixture, use_legacy, layer, request):
         impl="scanpy.get.aggregate",
     )
     assert_allclose_dense(out.X, expected_matrix)
+
+
+def test_pseudobulk_write_file(adata, tmp_path):
+    """Ensure pseudobulk output can be written to HDF5 and Zarr."""
+    out = pseudobulk(adata, group_key="donor_id", agg="sum", use_legacy=False, min_cells=1)
+
+    h5ad_file = tmp_path / "pseudobulk.h5ad"
+    out.write_h5ad(h5ad_file)
+    assert h5ad_file.exists()
+    re_h5 = ad.read_h5ad(h5ad_file)
+    assert re_h5.shape == out.shape
+
+    zarr_dir = tmp_path / "pseudobulk.zarr"
+    out.write_zarr(zarr_dir)
+    assert zarr_dir.exists()
+    re_z = ad.read_zarr(zarr_dir)
+    assert re_z.shape == out.shape
