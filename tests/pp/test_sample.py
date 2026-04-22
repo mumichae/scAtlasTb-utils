@@ -46,3 +46,22 @@ def test_random_n(adata_categorical):
 def test_no_sampling(adata_categorical):
     adata_sub = sample(adata_categorical)
     assert adata_sub.n_obs == 100
+
+
+@pytest.fixture
+def adata_with_na():
+    # 50 A, 30 B, 5 NA
+    celltypes = ["A"] * 50 + ["B"] * 30 + [np.nan] * 5
+    obs = pd.DataFrame({"celltype": celltypes})
+    X = np.random.randn(len(celltypes), 3)
+    return ad.AnnData(X=X, obs=obs)
+
+
+def test_stratified_na_preserved(adata_with_na):
+    # when dropna=False the NA group should be treated as a category
+    adata_sub = sample(adata_with_na, stratify="celltype", fraction=0.2, rng=42)
+    # original had NA entries
+    orig_na = adata_with_na.obs["celltype"].isna().sum()
+    sub_na = adata_sub.obs["celltype"].isna().sum()
+    assert orig_na > 0
+    assert sub_na >= 1
