@@ -139,6 +139,7 @@ def _plot_color_axis(
     obs=None,
     annotate_legend=True,
     plot_centroids=False,
+    centroid_label_bold=False,
     verbose=True,
     file_name=None,
     title="",
@@ -238,7 +239,7 @@ def _plot_color_axis(
                     legend=legend,
                     category_index_map=category_index_map,
                     legend_fontsize=legend_fontsize,
-                    bold_labels=bold_labels,
+                    bold_labels=bold_labels if centroid_label_bold else [],
                 )
 
             _format_legend_labels(
