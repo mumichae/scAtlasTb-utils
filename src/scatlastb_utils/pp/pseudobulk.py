@@ -171,6 +171,7 @@ def _aggregate_obs(
 
     # Set aggregated metadata order
     df = df.loc[group_order]
+    df.index.name = None
     df[group_key] = df.index.astype(str)
 
     # compute per-group counts (n_agg) and add to aggregated obs
@@ -234,7 +235,7 @@ def _get_pseudobulk_matrix_dask_legacy(adata, group_key, agg, mask, layer, force
             agg,
             force_sparse=force_sparse,
             dtype=dtype,
-            chunks=((1,) * len(groups), X.shape[1]),
+            chunks=((1,) * len(chunk_sizes), X.shape[1]),
             meta=meta,
         )
     assert pseudobulks.shape[0] == len(groups)
