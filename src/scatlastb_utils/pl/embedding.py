@@ -19,7 +19,7 @@ from scatlastb_utils.pp.sample import sample
 from scatlastb_utils.utils import _sanitize_default_file_name, dask_compute, parse_gene_names, remove_outliers
 
 
-def _format_legend_labels(legend, obs, color, annotate_legend=True, category_index_map=None, bold_labels=None):
+def _format_legend_labels(legend, obs, color, annotate_legend, category_index_map, bold_labels):
     """
     Unified handler for legend styling.
 
@@ -55,9 +55,19 @@ def _format_legend_labels(legend, obs, color, annotate_legend=True, category_ind
 
 
 def _plot_centroids_on_embedding(
-    ax, adata, color, basis, legend, category_index_map, legend_fontsize=10, bold_labels=None
+    ax,
+    adata,
+    color,
+    basis,
+    legend,
+    category_index_map,
+    legend_fontsize=10,
+    bold_labels=None,
+    adjust_text_kwargs=None,
 ):
     """Plot category numbers at centroid positions on the embedding."""
+    from adjustText import adjust_text
+
     # Only compute centroids for categories actually present in the current subset
     categories = [cat for cat in adata.obs[color].cat.categories if cat in adata.obs[color].unique()]
 
@@ -80,7 +90,7 @@ def _plot_centroids_on_embedding(
     if bold_labels is None:
         bold_labels = []
 
-    # Plot category numbers at centroids
+    created_texts = []
     for cat, row in centroids.iterrows():
         bg_color = color_map.get(cat, "white")
 
@@ -88,13 +98,13 @@ def _plot_centroids_on_embedding(
         try:
             r, g, b = mpl.colors.to_rgba(bg_color)[:3]
             luminance = 0.299 * r + 0.587 * g + 0.114 * b
-            text_color = "white" if luminance < 0.4 else "black"
+            text_color = "white" if luminance < 0.3 else "black"
         except (ValueError, TypeError):
             text_color = "white"
 
         # Determine label for centroid
         label = category_index_map.get(cat, cat)
-        ax.text(
+        txt = ax.text(
             row.iloc[0],
             row.iloc[1],
             s=str(label),
@@ -109,7 +119,17 @@ def _plot_centroids_on_embedding(
                 alpha=0.4,
                 edgecolor="none",
             ),
-        ).set_path_effects([mpl.patheffects.Stroke(linewidth=2, foreground=bg_color), mpl.patheffects.Normal()])
+        )
+        txt.set_path_effects([mpl.patheffects.Stroke(linewidth=2, foreground=bg_color), mpl.patheffects.Normal()])
+        created_texts.append(txt)
+
+    if adjust_text_kwargs is None:
+        adjust_text_kwargs = dict(
+            force_text=(0.5, 0.5),
+            expand=(1.05, 1.05),
+            autoalign=False,
+        )
+    adjust_text(created_texts, ax=ax, **adjust_text_kwargs)
 
 
 def _estimate_legend_width(categories, fontsize):
@@ -148,6 +168,7 @@ def _plot_color_axis(
     dpi=200,
     figsize=(6, 6),
     outline_thickness=2,
+    adjust_text_kwargs=None,
     bold_labels=None,
     warn_on_drop=True,
     **kwargs,
@@ -240,6 +261,7 @@ def _plot_color_axis(
                     category_index_map=category_index_map,
                     legend_fontsize=legend_fontsize,
                     bold_labels=bold_labels if centroid_label_bold else [],
+                    adjust_text_kwargs=adjust_text_kwargs,
                 )
 
             _format_legend_labels(
@@ -299,6 +321,7 @@ def embedding(
     n_jobs: int = 1,
     figsize: tuple = (6, 6),
     downsample: float | int | None = None,
+    adjust_text_kwargs: dict | None = None,
     warn_on_drop: bool = True,
     inplace: bool = False,
     **kwargs,
@@ -306,14 +329,32 @@ def embedding(
     """
     Plot a scanpy embedding for one or more colors with preprocessing and post-processing.
 
-    Wraps ``sc.pl.embedding`` with:
-    - categorical column cleaning (NaN normalisation, rare-category removal)
-    - embedding outlier removal
-    - automatic palette selection
-    - centroid labels with sctk-style numbering
-    - group-size annotations in the legend
-    - gene-panel chunking
-    - parallel saving of per-color PNG files
+    This wraps ``sc.pl.embedding`` with dataset cleaning, optional centroid
+    placement and optional label-overlap resolution using :mod:`adjustText`.
+
+    Features
+    --------
+    - Dataset cleaning: normalize NA-like strings, remove rare categories,
+        and convert views to copies when needed to avoid upstream side-effects.
+    - Centroid placement: draw labeled centroids (sctk-style numbered circles)
+        for selected categories via the ``plot_centroids`` parameter.
+    - Label-overlap resolution: optional integration with ``adjustText`` via
+        the ``adjust_text_kwargs`` parameter to automatically nudge centroid
+        labels and draw arrows when necessary.
+    - Downsampling: random subsampling by fraction or maximum cell count
+        using the ``downsample`` parameter to speed plotting of large datasets.
+    - Outlier removal: drop extreme embedding coordinates using
+        ``outlier_factor`` to avoid axis-scaling driven by outliers.
+    - Gene chunking: split large gene panels into separate figures using
+        ``gene_chunk_size`` to keep gene plots readable.
+    - Output control: save figures to ``output_dir`` or display interactively
+        (default). File names are sanitized automatically.
+    - Legend enhancements: annotate category counts, bold selected labels,
+        and respect custom category ordering via ``category_order``.
+    - Parallel rendering: generate multiple figures in parallel with
+        ``n_jobs`` for faster batch plotting.
+    - Compatibility helpers: parse gene names, warn on dropped colors, and
+        forward additional parameters through ``**kwargs`` to ``sc.pl.embedding``.
 
     Parameters
     ----------
@@ -356,6 +397,13 @@ def embedding(
     downsample
         If float in (0, 1], randomly subsample that fraction of cells before plotting.
         If int > 1, randomly subsample up to that many cells. Default: None (no downsampling).
+    adjust_text_kwargs : dict, optional
+        If provided, these keyword arguments will be forwarded to
+        ``adjust_text`` (from the ``adjustText`` package) to resolve overlapping
+        centroid labels placed by this function (when ``plot_centroids=True``).
+        Example keys include ``arrowprops`` (dict) and ``expand_text`` (tuple).
+        Note: ``adjustText`` is a required dependency; import will fail with a
+        clear error if it is not installed.
     warn_on_drop
         If True, log warnings when colors are dropped due to invalidity or low category counts.
     inplace
@@ -365,6 +413,26 @@ def embedding(
     **kwargs
         Additional keyword arguments forwarded to ``_plot_color_axis`` and
         ultimately to ``sc.pl.embedding`` (e.g. ``legend_fontsize``, ``ncols``).
+
+    Examples
+    --------
+    - Automatic centroid placement + adjustment::
+
+        embedding(
+            adata,
+            basis="X_umap",
+            color="cluster_number",
+            plot_centroids=True,
+            adjust_text_kwargs={
+                "arrowprops": {"arrowstyle": "->", "color": "black", "lw": 0.5},
+                "expand_text": (1.05, 1.2),
+            },
+        )
+
+    Notes
+    -----
+    - Install ``adjustText`` with ``pip install adjustText`` to enable automatic
+      label adjustment.
     """
     plot_centroids = list(plot_centroids) if plot_centroids else []
     obs_columns = list(adata.obs.columns)
@@ -400,14 +468,16 @@ def embedding(
 
     # Prepare each obs color column
     for col in [col for col in colors if is_categorical_dtype(adata.obs[col]) or is_string_dtype(adata.obs[col])]:
-        # set NaNs
+        # set NaNs (optional)
         column = adata.obs[col].astype(object).replace(na_strings, float("nan")).astype("category")
         # remove rare categories
-        value_counts = column.value_counts()
+        value_counts = column.value_counts(dropna=False)
         rare = value_counts[value_counts <= min_cells_per_category].index
         if warn_on_drop and len(rare) > 0:
             logging.warning(f"In color '{col}', the following rare categories were dropped: {list(rare)}")
         adata.obs[col] = column.cat.remove_categories(rare)
+
+        print(adata.shape)
 
         # handle category ordering if specified
         order = None
@@ -447,6 +517,7 @@ def embedding(
         elif isinstance(downsample, int) and downsample > 1 and adata.n_obs > downsample:
             adata = sample(adata, n=downsample, stratify=stratify_col, copy=False)
         # else: ignore if not valid
+    print("after downsample", adata.shape)
 
     if adata.is_view:
         logging.info("Convert view to copy...")
@@ -486,6 +557,7 @@ def embedding(
                     dpi=dpi,
                     output_dir=output_dir,
                     figsize=figsize,
+                    adjust_text_kwargs=adjust_text_kwargs,
                     **kwargs,
                 )
                 for col in colors
