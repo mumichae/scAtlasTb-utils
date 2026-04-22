@@ -254,7 +254,8 @@ def _plot_color_axis(
         # adjust figure layout to accommodate legend and title
         plt.subplots_adjust(left=0.1, right=0.95, top=0.85, bottom=0.1)
         ax.set_box_aspect(figsize[1] / figsize[0])
-        fig.suptitle(f"{title}\nn={obs.shape[0]}", fontsize=12)
+        if isinstance(title, str):
+            fig.suptitle(f"{title}\nn={obs.shape[0]}", fontsize=12)
 
         if verbose:
             logging.info(f'Plotting color "{file_name}" successful.')
@@ -292,7 +293,7 @@ def embedding(
     outlier_factor: float = 0,
     gene_chunk_size: int = 10,
     output_dir: Path | str | None = None,
-    title: str = "",
+    title: str | bool = "",
     annotate_legend: bool = True,
     dpi: int = 200,
     n_jobs: int = 1,
