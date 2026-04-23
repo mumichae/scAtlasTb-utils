@@ -14,7 +14,7 @@ def adata():
 
     # Parameters for the negative binomial distribution
     n, p = 1000, 0.5
-    counts = sp.csr_matrix(nbinom.rvs(n, p, size=(5, 10)))
+    counts = sp.csr_matrix(nbinom.rvs(n, p, size=(100, 10)))
 
     adata = ad.AnnData(
         X=counts,
@@ -49,3 +49,18 @@ def adata_dask(adata):
     adata.X = da.from_array(adata.X, chunks=(2, -1))
     adata.layers["counts"] = da.from_array(adata.layers["counts"], chunks=(2, -1))
     return adata
+
+
+@pytest.fixture
+def adata_dask_backed(adata):
+    """Write `adata` to a temporary Zarr and yield a dask-backed, backed AnnData."""
+    import tempfile
+    from pathlib import Path
+
+    import scatlastb_utils as sa
+
+    with tempfile.TemporaryDirectory() as td:
+        p = Path(td) / "tmp.zarr"
+        adata.write_zarr(p)
+        adata_dask = sa.io.read_anndata(p, dask=True, backed=True)
+        yield adata_dask

@@ -14,16 +14,17 @@ maintainers = [
 authors = [
   { name = "Michaela Mueller" },
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 classifiers = [
   "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-  "adjusttext",
-  "anndata>=0.12",
+  "anndata>=0.11",
   "dask",
   "dask-ml",
   "h5py>=1.14.2",
@@ -94,12 +95,12 @@ scripts.clean = "git clean -fdX -- {args:docs}"
 # Test the lowest and highest supported Python versions with normal deps
 [[tool.hatch.envs.hatch-test.matrix]]
 deps = [ "stable" ]
-python = [ "3.12", "3.14" ]
+python = [ "3.10", "3.13" ]
 
 # Test the newest supported Python version also with pre-release deps
 [[tool.hatch.envs.hatch-test.matrix]]
 deps = [ "pre" ]
-python = [ "3.14" ]
+python = [ "3.13" ]
 
 [tool.hatch.envs.hatch-test]
 dependency-groups = [ "dev", "test" ]

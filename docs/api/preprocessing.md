@@ -10,4 +10,5 @@
 
     strip_barcodes
     find_library_obs
+    pseudobulk
 ```
