@@ -326,35 +326,10 @@ def embedding(
     inplace: bool = False,
     **kwargs,
 ):
-    """
-    Plot a scanpy embedding for one or more colors with preprocessing and post-processing.
+    """Plot a scanpy embedding for one or more colors with preprocessing and post-processing.
 
     This wraps ``sc.pl.embedding`` with dataset cleaning, optional centroid
     placement and optional label-overlap resolution using :mod:`adjustText`.
-
-    Features
-    --------
-    - Dataset cleaning: normalize NA-like strings, remove rare categories,
-        and convert views to copies when needed to avoid upstream side-effects.
-    - Centroid placement: draw labeled centroids (sctk-style numbered circles)
-        for selected categories via the ``plot_centroids`` parameter.
-    - Label-overlap resolution: optional integration with ``adjustText`` via
-        the ``adjust_text_kwargs`` parameter to automatically nudge centroid
-        labels and draw arrows when necessary.
-    - Downsampling: random subsampling by fraction or maximum cell count
-        using the ``downsample`` parameter to speed plotting of large datasets.
-    - Outlier removal: drop extreme embedding coordinates using
-        ``outlier_factor`` to avoid axis-scaling driven by outliers.
-    - Gene chunking: split large gene panels into separate figures using
-        ``gene_chunk_size`` to keep gene plots readable.
-    - Output control: save figures to ``output_dir`` or display interactively
-        (default). File names are sanitized automatically.
-    - Legend enhancements: annotate category counts, bold selected labels,
-        and respect custom category ordering via ``category_order``.
-    - Parallel rendering: generate multiple figures in parallel with
-        ``n_jobs`` for faster batch plotting.
-    - Compatibility helpers: parse gene names, warn on dropped colors, and
-        forward additional parameters through ``**kwargs`` to ``sc.pl.embedding``.
 
     Parameters
     ----------
@@ -429,10 +404,6 @@ def embedding(
             },
         )
 
-    Notes
-    -----
-    - Install ``adjustText`` with ``pip install adjustText`` to enable automatic
-      label adjustment.
     """
     plot_centroids = list(plot_centroids) if plot_centroids else []
     obs_columns = list(adata.obs.columns)
