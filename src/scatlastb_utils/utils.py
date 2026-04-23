@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
+import types
 from contextlib import nullcontext
 
 import anndata as ad
 import numpy as np
 from dask import array as da
+from scipy import sparse as sp
 from tqdm.dask import TqdmCallback
 
 
@@ -131,15 +134,13 @@ def apply_layers(
     for layer in layers:
         if verbose:
             print(f"Apply function {func.__name__} to {layer}...", flush=True)
-        if layer == "X":
+        if layer == "X" and adata.X is not None:
             adata.X = func(adata.X, **kwargs)
         elif layer in adata.layers:
             adata.layers[layer] = func(adata.layers[layer], **kwargs)
         elif layer in adata.obsm:
             adata.obsm[layer] = func(adata.obsm[layer], **kwargs)
-        elif layer == "raw":
-            if adata.raw is None:
-                continue
+        elif layer == "raw" and adata.raw is not None:
             adata_raw = adata.raw.to_adata()
             adata_raw.X = func(adata.raw.X, **kwargs)
             adata.raw = adata_raw
@@ -184,3 +185,72 @@ def dask_compute(
         return x
 
     return apply_layers(adata, func=compute_layer, layers=layers, verbose=verbose, **kwargs)
+
+
+def check_sparse(matrix, sparse_type=None):
+    """Check if a matrix is in sparse format."""
+    if sparse_type is None:
+        sparse_type = (sp.spmatrix, ad.abc.CSRDataset, ad.abc.CSCDataset)
+    elif not isinstance(sparse_type, tuple):
+        sparse_type = (sparse_type,)
+
+    # convert to type for functions
+    sparse_type = [type(x(0)) if isinstance(x, types.FunctionType) else x for x in sparse_type]
+    sparse_type = tuple(sparse_type)
+
+    if isinstance(matrix, da.Array):
+        return isinstance(matrix._meta, sparse_type)
+    return isinstance(matrix, sparse_type)
+
+
+def check_sparse_equal(a: sp.spmatrix, b: sp.spmatrix):
+    """Check if two matrices are equal in sparse format."""
+    a = a if check_sparse(a) else sp.csr_matrix(a)
+    b = b if check_sparse(b) else sp.csr_matrix(b)
+    if a.shape != b.shape:
+        logging.warning(f"Shape mismatch: {a.shape} != {b.shape}")
+    return a.shape == b.shape and (a != b).nnz == 0
+
+
+def ensure_sparse(adata, layers: [str, list] = None, sparse_type=None, **kwargs):
+    """Convert matrices in AnnData object to sparse format.
+
+    This function also deals with Dask arrays, ensuring that the chunks are sparse.
+
+    :param adata: AnnData object
+    :param layers: List of layers to convert, or 'X', 'raw', or 'all' (default is None, which converts 'X', 'raw', and all layers)
+    :param sparse_type: Type of sparse matrix to convert to (default is None, which uses csr_matrix)
+    :param kwargs: Additional arguments passed to the apply_layers function
+    """
+
+    def to_sparse(matrix, sparse_type=None):
+        if sparse_type is None:
+            sparse_type = sp.csr_matrix
+
+        if check_sparse(matrix, sparse_type):
+            return matrix
+        elif isinstance(matrix, da.Array):
+            return matrix.map_blocks(sparse_type, dtype=matrix.dtype)
+        return sparse_type(matrix)
+
+    return apply_layers(adata, func=to_sparse, layers=layers, sparse_type=sparse_type, **kwargs)
+
+
+def ensure_dense(adata: ad.AnnData, layers: [str, list] = None, **kwargs):
+    """Convert sparse matrices in AnnData object to dense format.
+
+    This function also deals with Dask arrays, ensuring that the chunks are dense.
+
+    :param adata: AnnData object
+    :param layers: List of layers to convert, or 'X', 'raw', or 'all' (default is None, which converts 'X', 'raw', and all layers)
+    :param kwargs: Additional arguments passed to the apply_layers function
+    """
+
+    def to_dense(matrix):
+        if isinstance(matrix, da.Array):
+            return matrix.map_blocks(np.array)
+        if check_sparse(matrix):
+            return matrix.toarray()
+        return matrix
+
+    return apply_layers(adata, func=to_dense, layers=layers, **kwargs)
