@@ -9,4 +9,5 @@
     :toctree: ../generated
 
     qc_joint
+    embedding
 ```

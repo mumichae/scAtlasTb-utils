@@ -24,6 +24,7 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
+  "adjusttext",
   "anndata>=0.11",
   "dask",
   "dask-ml",

@@ -3,6 +3,8 @@
 import anndata as ad
 import numpy as np
 
+SENTINEL = "__NaN__"
+
 
 def sample(
     adata: ad.AnnData,
@@ -45,16 +47,18 @@ def sample(
         assert stratify in obs.columns, f'stratify column "{stratify}" not found in adata.obs'
         mask = np.zeros(len(obs), dtype=bool)
 
+        groupby_col = obs[stratify].astype(object).fillna(SENTINEL)  # cast to object to escape Categorical
+        grouped = groupby_col.groupby(groupby_col, sort=False, dropna=False).indices
+        counts = {cat: len(idxs) for cat, idxs in grouped.items()}
+
         if n is not None:
-            counts = obs[stratify].value_counts()
-            n_per_cat_dict = (counts * (n / len(obs))).round().astype(int).clip(lower=1).to_dict()
+            ratio = n / len(obs)
+            n_per_cat_dict = {cat: max(1, int(round(cnt * ratio))) for cat, cnt in counts.items()}
         elif fraction is not None and 0 < fraction < 1:
-            counts = obs[stratify].value_counts()
-            n_per_cat_dict = (counts * fraction).round().astype(int).clip(lower=1).to_dict()
+            n_per_cat_dict = {cat: max(1, int(round(cnt * fraction))) for cat, cnt in counts.items()}
         else:
             return adata
 
-        grouped = obs.groupby(stratify, sort=False, observed=True).indices
         for cat, cat_positions in grouped.items():
             n_cat = min(len(cat_positions), n_per_cat_dict.get(cat, 1))
             chosen = rng.choice(cat_positions, n_cat, replace=False)

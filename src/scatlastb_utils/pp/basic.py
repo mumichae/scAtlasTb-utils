@@ -103,7 +103,7 @@ def strip_barcodes(obs_names, re_pattern="[ACTG]{16}"):
     obs_names
         A list of cell names to strip down to just barcodes.
     re_pattern
-        The pattern to ``re.search()`` for, the ``"[ACTG]{16}"`` default matches 
+        The pattern to ``re.search()`` for, the ``"[ACTG]{16}"`` default matches
         16bp 10X barcodes.
 
     Returns
@@ -176,7 +176,9 @@ def find_library_obs(library_obs_names, obs, library_key="library_id", **kwargs)
     # and then the .apply() takes them, adds a static argument of the barcode pool on input
     # and performs a simple lambda to get the size of the overlap between the two
     # (the actual function is broken off for legibility)
-    obs_counts = x.groupby(x, observed=False).apply(lambda grp: _get_barcode_overlap(grp.index, library_obs_names, **kwargs))
+    obs_counts = x.groupby(x, observed=False).apply(
+        lambda grp: _get_barcode_overlap(grp.index, library_obs_names, **kwargs)
+    )
     # at this point we can pull out the subset and strip the barcodes
     sub = obs[obs[library_key] == obs_counts.idxmax()].copy(deep=True)
     sub.index = strip_barcodes(sub.index, **kwargs)
