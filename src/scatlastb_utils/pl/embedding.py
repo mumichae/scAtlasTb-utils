@@ -64,6 +64,7 @@ def _plot_centroids_on_embedding(
     legend_fontsize=10,
     bold_labels=None,
     adjust_text_kwargs=None,
+    luminance_threshold=0.5,
 ):
     """Plot category numbers at centroid positions on the embedding."""
     from adjustText import adjust_text
@@ -98,7 +99,7 @@ def _plot_centroids_on_embedding(
         try:
             r, g, b = mpl.colors.to_rgba(bg_color)[:3]
             luminance = 0.299 * r + 0.587 * g + 0.114 * b
-            text_color = "white" if luminance < 0.3 else "black"
+            text_color = "white" if luminance < luminance_threshold else "black"
         except (ValueError, TypeError):
             text_color = "white"
 
@@ -171,6 +172,7 @@ def _plot_color_axis(
     adjust_text_kwargs=None,
     bold_labels=None,
     warn_on_drop=True,
+    luminance_threshold=0.5,
     **kwargs,
 ):
     """Plot a single color (or list of gene colors) and optionally save to disk."""
@@ -262,6 +264,7 @@ def _plot_color_axis(
                     legend_fontsize=legend_fontsize,
                     bold_labels=bold_labels if centroid_label_bold else [],
                     adjust_text_kwargs=adjust_text_kwargs,
+                    luminance_threshold=luminance_threshold,
                 )
 
             _format_legend_labels(
@@ -324,6 +327,7 @@ def embedding(
     adjust_text_kwargs: dict | None = None,
     warn_on_drop: bool = True,
     inplace: bool = False,
+    luminance_threshold: float = 0.5,
     **kwargs,
 ):
     """Plot a scanpy embedding for one or more colors with preprocessing and post-processing.
@@ -385,6 +389,9 @@ def embedding(
         If True, remove slots from adata inplace. This can be useful for scripts where the
         adata is not used afterwards, and memory footprint should be minimised to only what
         is essential for plotting.
+    luminance_threshold : float, optional
+        Threshold for deciding whether to use white or black text for centroid labels based on
+        background color luminance. Default is 0.5.
     **kwargs
         Additional keyword arguments forwarded to ``_plot_color_axis`` and
         ultimately to ``sc.pl.embedding`` (e.g. ``legend_fontsize``, ``ncols``).
@@ -529,6 +536,7 @@ def embedding(
                     output_dir=output_dir,
                     figsize=figsize,
                     adjust_text_kwargs=adjust_text_kwargs,
+                    luminance_threshold=luminance_threshold,
                     **kwargs,
                 )
                 for col in colors
