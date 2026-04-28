@@ -150,6 +150,7 @@ lint.ignore = [
 ]
 lint.per-file-ignores."*/__init__.py" = [ "F401" ]
 lint.per-file-ignores."docs/*" = [ "I" ]
+lint.per-file-ignores."docs/notebooks/*.ipynb" = [ "F401", "F821" ]
 lint.per-file-ignores."tests/*" = [ "D" ]
 lint.pydocstyle.convention = "numpy"
 
@@ -176,5 +177,5 @@ skip = [
   "docs/changelog.md",
   "docs/references.bib",
   "docs/references.md",
-  "docs/notebooks/example.ipynb",
+  # "docs/notebooks/*.ipynb",
 ]
