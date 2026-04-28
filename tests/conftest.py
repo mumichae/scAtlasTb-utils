@@ -43,6 +43,13 @@ def adata():
 
 
 @pytest.fixture
+def adata_pp(adata):
+    sc.pp.pca(adata)
+    sc.pp.neighbors(adata, n_neighbors=5, use_rep="X_pca")
+    return adata
+
+
+@pytest.fixture
 def adata_dask(adata):
     from dask import array as da
 
