@@ -262,13 +262,15 @@ def plot_distances_scatter(adata, x1, x2, **kwargs):
     :param x2: name of the graph distances of the second embedding
     :param kwargs: additional keyword arguments for the plt.scatter plot, e.g. `c`, `s`, `alpha`
     """
+    comp1 = f"{x1}-vs-{x2}"
+    comp2 = f"{x2}-vs-{x1}"
     # TODO: move to pl?
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
     ax1.scatter(
-        adata.obs[f"avg_distance_1:{x1}-vs-{x2}"],
-        adata.obs[f"avg_distance_2:{x1}-vs-{x2}"],
+        adata.obs[f"avg_distance_1:{comp1}"],
+        adata.obs[f"avg_distance_2:{comp1}"],
         **kwargs,
     )
     ax1.set_xlabel(x1)
@@ -277,14 +279,11 @@ def plot_distances_scatter(adata, x1, x2, **kwargs):
 
     metrics = ["avg_difference", "avg_distance_diff"]
     for metric in metrics:
-        ax2.scatter(
-            adata.obs[f"{metric}:{x1}-vs-{x2}"],
-            adata.obs[f"{metric}:{x2}-vs-{x1}"],
-            label=metric,
-            **kwargs,
-        )
-    ax2.set_xlabel(metrics[0])
-    ax2.set_ylabel(metrics[1])
+        x = f"{metric}:{comp1}"
+        y = f"{metric}:{comp2}"
+        ax2.scatter(adata.obs[x], adata.obs[y], label=metric, **kwargs)
+    ax2.set_xlabel(comp1)
+    ax2.set_ylabel(comp2)
     ax2.set_title("Graph differences")
     ax2.legend(loc="upper left", bbox_to_anchor=(1, 1))
 
