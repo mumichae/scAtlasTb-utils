@@ -148,50 +148,44 @@ def _compute_distances(rows, cols, obsm, n_jobs=-1, batch_size=100_000, **kwargs
 
 def compute_missing_distances(
     adata,
-    obsp_key_1,
+    obsp_key,
     obsm_key,
-    obsp_key_2,
+    conn_mask,
     inplace=True,
     return_matrix=True,
     n_jobs=-1,
     batch_size=100_000,
     **kwargs,
 ):
-    """Compute missing distances.
+    """Recompute missing pairwise distances restricted to a neighbor mask.
 
-    Due to scanpy's heuristic, only distances for k-nearest neighbors are kept.
-    In order to compare distances across embeddings, the corresponding distances of edges from one embedding
-    must be present or recomputed for the other embedding.
+    :param adata: AnnData-like object with `obsp` and `obsm` attributes.
+    :param obsp_key: Key in ``adata.obsp`` containing the distance matrix to update.
+    :param obsm_key: Key in ``adata.obsm`` containing the embedding used to compute distances.
+    :param conn_mask: scipy.sparse binary mask of connectivities to determine missing distances.
+    :param inplace: If True, store the updated distance matrix back to ``adata.obsp[obsp_key]``.
+    :param return_matrix: If True, return the updated matrix.
+    :param n_jobs: Number of parallel jobs to use for distance computation.
+    :param batch_size: Batch size used for distance computation.
+    :param kwargs: Passed to the distance computation routine (e.g., ``metric``).
 
-    :param obsp_key_1: slot for pair-wise distances from embedding 1
-    :param obsm_key: slot for embedding 1 used for missing distance computation
-    :param obsp_key_2: slot slot for pair-wise distances from embedding 2
-    :param inplace: if True, set distances inplace in adata.obsp[obsp_key_1]
-    :param n_jobs: number of jobs to run in parallel, -1 for all available cores
-    :param batch_size: batch size for distance computation
-    :param kwargs: additional keyword arguments for distance computation, e.g. metric='euclidean'
-    :param return_matrix: if True, return the distance matrix
+    :returns: scipy.sparse matrix when ``return_matrix`` is True, otherwise None.
     """
-    x1 = adata.obsp[obsp_key_1]
-    x2 = adata.obsp[obsp_key_2]
+    x = adata.obsp[obsp_key]
     obsm = adata.obsm[obsm_key]
 
-    if isinstance(x1, da.Array):
-        x1 = x1.compute()
-    if isinstance(x2, da.Array):
-        x2 = x2.compute()
+    if isinstance(x, da.Array):
+        x = x.compute()
+    if isinstance(conn_mask, da.Array):
+        conn_mask = conn_mask.compute()
 
     # fill in missing values to make distance matrix symmetric
-    for _ in tqdm(range(1), desc="Symmetrize matrix"):
-        x1 = symmetrize_if_needed(x1)
-        x2 = symmetrize_if_needed(x2)
+    x = symmetrize_if_needed(x)
 
-    # get neighbors that are not computed in the other graph
-    print("Determine missing distances...")
-    x1_adj, x2_adj = sp.triu(x1 > 0), sp.triu(x2 > 0)
-    # XOR and x1 values > 0
-    rows, cols = (x1_adj != x2_adj).multiply(x2_adj).nonzero()
-    del x1_adj, x2_adj
+    # determine candidate neighbor edges from provided mask and select those missing in x
+    rows, cols = sp.triu(conn_mask).nonzero()
+    positive = x[rows, cols].A1 > 0
+    rows, cols = rows[~positive], cols[~positive]
 
     n_distances = len(rows)
     print(f"{n_distances} edges to recompute")
@@ -208,19 +202,15 @@ def compute_missing_distances(
         )
 
         # add distances to distance matrix in place
-        new_distances = sp.coo_matrix(
-            (new_distances, (rows, cols)),
-            shape=x1.shape,
-            dtype="float32",
-        )
-        x1 = (x1.tocoo() + new_distances + new_distances.T).tocsr()
+        new_distances = sp.coo_matrix((new_distances, (rows, cols)), shape=x.shape, dtype="float32")
+        x = (x.tocoo() + new_distances + new_distances.T).tocsr()
 
     if inplace:
         print("Set distances inplace...")
-        adata.obsp[obsp_key_1] = x1
+        adata.obsp[obsp_key] = x
 
     if return_matrix:
-        return x1
+        return x
 
 
 def plot_ranked_distances(adata, x1, x2):
@@ -389,13 +379,15 @@ def get_knn(x, k):
 
 def compare_distances(
     adata,
-    obsp_key_1,
+    obsp_connectivities_1,
+    obsp_distances_1,
     obsm_key_1,
-    obsp_key_2,
+    obsp_connectivities_2,
+    obsp_distances_2,
     obsm_key_2,
     scale_distances=True,
     quantile=0.9,
-    k_max=50,
+    k_max=None,
     log_scale_diffs=False,
     **kwargs,
 ):
@@ -409,11 +401,16 @@ def compare_distances(
     4. "average_distance_diff": the average of the differences between the two embeddings
     5. "spearman_correlation": the Spearman correlation of the distance differences (of the k-nearest neighbors only)
 
-    :param adata: AnnData object containing the distances in obsp
-    :param obsp_key_1: slot for pair-wise distances from embedding 1
-    :param obsm_key_1: slot for embedding 1 used for distance computation
-    :param obsp_key_2: slot for pair-wise distances from embedding 2
-    :param obsm_key_2: slot for embedding 2 used for distance computation
+    Neighborhoods are inferred from connectivities of embedding 1. If k_max is None, all non-zero
+    connectivities are used.
+
+    :param adata: AnnData object containing the graph data in obsp
+    :param obsp_connectivities_1: slot for connectivities from embedding 1
+    :param obsp_distances_1: slot for pair-wise distances from embedding 1
+    :param obsm_key_1: slot for embedding 1 used for missing distance computation
+    :param obsp_connectivities_2: slot for connectivities from embedding 2
+    :param obsp_distances_2: slot for pair-wise distances from embedding 2
+    :param obsm_key_2: slot for embedding 2 used for missing distance computation
     :param scale_distances: if True, scale distances by the quantile of the distances
     :param quantile: quantile to scale distances by, default is 0.9
     :param k_max: maximum number of neighbors to consider, default is 50
@@ -421,39 +418,48 @@ def compare_distances(
     :param kwargs: additional keyword arguments for distance computation, e.g. metric='euclidean'
     :return: DataFrame with average distances and differences
     """
-    if isinstance(adata.obsp[obsp_key_1], da.Array):
-        adata.obsp[obsp_key_1] = adata.obsp[obsp_key_1].compute()
+    if isinstance(adata.obsp[obsp_distances_1], da.Array):
+        adata.obsp[obsp_distances_1] = adata.obsp[obsp_distances_1].compute()
 
-    if isinstance(adata.obsp[obsp_key_2], da.Array):
-        adata.obsp[obsp_key_2] = adata.obsp[obsp_key_2].compute()
+    if isinstance(adata.obsp[obsp_distances_2], da.Array):
+        adata.obsp[obsp_distances_2] = adata.obsp[obsp_distances_2].compute()
+
+    if isinstance(adata.obsp[obsp_connectivities_1], da.Array):
+        adata.obsp[obsp_connectivities_1] = adata.obsp[obsp_connectivities_1].compute()
+
+    if isinstance(adata.obsp[obsp_connectivities_2], da.Array):
+        adata.obsp[obsp_connectivities_2] = adata.obsp[obsp_connectivities_2].compute()
+
+    if k_max is not None:
+        conn_mask = get_knn(adata.obsp[obsp_connectivities_1], k=k_max) > 0
+    else:
+        conn_mask = adata.obsp[obsp_connectivities_1] > 0
 
     x2 = compute_missing_distances(
         adata,
-        obsp_key_1=obsp_key_2,
+        obsp_key=obsp_distances_2,
         obsm_key=obsm_key_2,
-        obsp_key_2=obsp_key_1,
+        conn_mask=conn_mask,
         inplace=False,
         return_matrix=True,
         **kwargs,
     ).copy()
 
-    x1 = get_knn(adata.obsp[obsp_key_1], k=k_max)
-    nnz_mask = x1 > 0
-    x2 = x2.multiply(nnz_mask)
+    x1 = adata.obsp[obsp_distances_1].copy()
+    x1 = x1.multiply(conn_mask)
+    x1.eliminate_zeros()
+    x2 = x2.multiply(conn_mask)
     x2.eliminate_zeros()
 
-    degrees = nnz_mask.sum(axis=0)
+    degrees = conn_mask.sum(axis=0)
     degrees[degrees == 0] = 1
-    # print('zero degrees', (degrees == 0).sum())
-    # print('zero degrees', ((x1 > 0).sum(axis=0) == 0).sum())
-    # print('zero degrees', (x1.sum(axis=0) == 0).sum())
 
     if scale_distances:
         # x1.data = 1 / np.log10(x1.data + 1)
         # x2.data = 1 / np.log10(x2.data + 1)
         print(f"scale distances by {quantile} quantile...")
-        x1.data /= np.quantile(adata.obsp[obsp_key_1].data, q=quantile)
-        x2.data /= np.quantile(adata.obsp[obsp_key_2].data, q=quantile)
+        x1.data /= np.quantile(adata.obsp[obsp_distances_1].data, q=quantile)
+        x2.data /= np.quantile(adata.obsp[obsp_distances_2].data, q=quantile)
 
     print("Calculate differences...")
     diff_mtx = x1 - x2
