@@ -43,19 +43,25 @@ def _symmetrize_mask(x, verbose=False):
     return row_mask, col_mask
 
 
-def is_symmetric(x):
+def is_symmetric(x, tol: float = 0.0) -> bool:
     """Check if a sparse matrix is symmetric.
 
-    A matrix is symmetric if it is equal to its transpose.
-
     :param x: sparse matrix to check
-    :return: True if the matrix is symmetric, False otherwise
+    :param tol: tolerance for numeric differences (default 0.0)
+    :return: True if the matrix is symmetric within `tol`, False otherwise
     """
-    # Check if the matrix is equal to its transpose
-    # return (x != x.transpose()).nnz == 0
-    # return sp.triu(x).nnz == sp.tril(x).nnz
-    return (x.sum(0) % 2 == 0).all()
-    # return (x != x.T).nnz == 0
+    # Compute sparse difference; stays sparse and scales with nnz
+    diff = x - x.T
+    if diff.nnz == 0:
+        return True
+    if tol > 0.0:
+        return np.max(np.abs(diff.data)) <= tol
+    return False
+
+
+def is_constant(arr):
+    """Check if all values in an array are the same."""
+    return arr[0] == arr[-1] and arr.min() == arr.max()
 
 
 def symmetrize_if_needed(x):
@@ -286,55 +292,66 @@ def plot_distances_scatter(adata, x1, x2, **kwargs):
     plt.show()
 
 
-def sparse_spearman(matrix1: sp.spmatrix, matrix2: sp.spmatrix, max_workers=None, n_jobs=-1):
-    """Calculate Spearman correlation for each row in two sparse distance matrices.
+def sparse_spearman(
+    m1: sp.spmatrix,
+    m2: sp.spmatrix,
+    mask: sp.spmatrix,
+    n_jobs: int = 1,
+    batch_size: int = 10_000,
+) -> np.ndarray:
+    """Calculate Spearman correlation for each row, restricted to local neighborhoods.
 
-    This function computes the Spearman correlation only for local neighborhoods.
+    For each row i, only columns j where mask[i, j] != 0 are considered.
+    Values absent in m1 or m2 but present in mask are treated as 0.
+    Rows with fewer than 2 neighbors or constant values return NaN.
 
-    :param matrix1: First sparse matrix (scipy.sparse format).
-    :param matrix2: Second sparse matrix (scipy.sparse format).
-    :param max_workers: Maximum number of workers for parallel computation.
-    :param n_jobs: Number of jobs to run in parallel. If -1, use all available cores.
+    :param m1: First sparse matrix (scipy.sparse CSR format preferred).
+    :param m2: Second sparse matrix (scipy.sparse CSR format preferred).
+    :param mask: Sparse binary mask defining local neighborhoods.
+        Non-zero entries at [i, j] indicate that column j is a
+        valid neighbor for row i.
+    :param n_jobs: Number of parallel jobs. -1 uses all available cores.
+    :param batch_size: Number of rows to process per batch. Controls the
+        tradeoff between memory usage and parallelisation overhead.
+    :return: 1D array of Spearman correlations, one per row. NaN where
+        correlation is undefined (constant row or fewer than 2 neighbors).
     """
+    from scipy.stats import rankdata
 
-    def _sparse_spearman(row1, row2):
-        def pad_zeros(x, shape):
-            x_pad = np.zeros(shape, dtype=x.dtype)
-            x_pad[-x.shape[0] :] = x
-            return x_pad
+    assert m1.shape == m2.shape == mask.shape, f"Shape mismatch: {m1.shape}, {m2.shape}, {mask.shape}"
 
-        n, n2 = row1.shape[0], row2.shape[0]
+    # CSR for efficient row slicing
+    m1 = m1.tocsr()
+    m2 = m2.tocsr()
+    mask = mask.tocsr()
+    n_rows = m1.shape[0]
 
-        # Avoid division by zero for constant rows
-        if n <= 1 or n2 <= 1 or np.all(row1 == row1[0]) or np.all(row2 == row2[0]):
+    def _get_row_values(i):
+        cols = mask.indices[mask.indptr[i] : mask.indptr[i + 1]]
+        if len(cols) <= 1:
+            return None, None
+        row1 = m1[i, cols].toarray().ravel()
+        row2 = m2[i, cols].toarray().ravel()
+        return row1, row2
+
+    def _spearman(row1, row2) -> float:
+        if row1 is None:
             return np.nan
+        if is_constant(row1) or is_constant(row2):
+            return np.nan
+        n = len(row1)
+        rank1 = rankdata(row1)
+        rank2 = rankdata(row2)
+        return 1.0 - (6.0 * np.sum((rank1 - rank2) ** 2)) / (n * (n**2 - 1))
 
-        # check if rows have same length, otherwise pad with zeros
-        if n > n2:
-            row2 = pad_zeros(row2, n)
-        elif n < n2:
-            row1 = pad_zeros(row1, n2)
-
-        # Rank the data
-        rank1 = np.argsort(np.argsort(row1)) + 1
-        rank2 = np.argsort(np.argsort(row2)) + 1
-
-        # Calculate Spearman correlation
-        return 1 - (6 * np.sum((rank1 - rank2) ** 2)) / (n * (n**2 - 1))
-
-    def get_row_data(x, i):
-        return x.data[x.indptr[i] : x.indptr[i + 1]]
-
-    assert matrix1.shape == matrix2.shape, f"shape mismatch: {matrix1.shape}, {matrix2.shape}"
-
-    n_rows = matrix1.shape[0]
-    row_data = [(get_row_data(matrix1, i), get_row_data(matrix2, i)) for i in range(n_rows)]
-
-    with parallel_backend("loky"):
-        results = Parallel(n_jobs=n_jobs)(
-            delayed(_sparse_spearman)(row1, row2)
-            for row1, row2 in tqdm(row_data, desc="Spearman correlation", mininterval=1, total=n_rows)
-        )
+    results = []
+    batches = range(0, n_rows, batch_size)
+    for start in tqdm(batches, desc="Spearman correlation", unit="batch"):
+        end = min(start + batch_size, n_rows)
+        batch = [_get_row_values(i) for i in range(start, end)]
+        with parallel_backend("loky"):
+            batch_results = Parallel(n_jobs=n_jobs)(delayed(_spearman)(row1, row2) for row1, row2 in batch)
+        results.extend(batch_results)
 
     return np.array(results)
 
@@ -389,6 +406,8 @@ def compare_distances(
     quantile=0.9,
     k_max=None,
     log_scale_diffs=False,
+    n_jobs=1,
+    batch_size=10_000,
     **kwargs,
 ):
     """Compare distances of same edges but from different representations.
@@ -415,6 +434,8 @@ def compare_distances(
     :param quantile: quantile to scale distances by, default is 0.9
     :param k_max: maximum number of neighbors to consider, default is 50
     :param log_scale_diffs: if True, log scale the differences
+    :param n_jobs: number of parallel jobs to run, default is 1
+    :param batch_size: number of rows to process per batch, default is 10_000
     :param kwargs: additional keyword arguments for distance computation, e.g. metric='euclidean'
     :return: DataFrame with average distances and differences
     """
@@ -442,6 +463,8 @@ def compare_distances(
         conn_mask=conn_mask,
         inplace=False,
         return_matrix=True,
+        n_jobs=n_jobs,
+        batch_size=batch_size,
         **kwargs,
     ).copy()
 
@@ -484,7 +507,7 @@ def compare_distances(
             "average_distance_2": (x2.sum(axis=0) / degrees).A1,
             "average_difference": avg_diff,
             "average_distance_diff": avg_dist_diff,
-            "spearman_correlation": sparse_spearman(x1, x2),
+            "spearman_correlation": sparse_spearman(x1, x2, mask=conn_mask, n_jobs=n_jobs, batch_size=batch_size),
         },
         index=adata.obs_names,
     )
