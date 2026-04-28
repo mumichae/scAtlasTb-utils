@@ -3,7 +3,7 @@
 Import `scatlastb_utils` as:
 
 ```
-import scatlastb_utils as sa
+import scatlastb_utils as atl
 ```
 
 
